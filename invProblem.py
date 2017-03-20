@@ -32,7 +32,7 @@ if __name__ == "__main__":
 	
 	# prior measure:
 	alpha = 0.7
-	beta = 0.2
+	beta = 0.5
 	mean = np.zeros((31,))
 	prior = GaussianFourier(mean, alpha, beta)
 	
@@ -43,7 +43,13 @@ if __name__ == "__main__":
 	plt.plot(x, u0.handle(x))
 	plt.show()
 	
-	
+	# construct solution and observation
+	p0, C = fwd.solve(x, k0)
+	x0_ind = range(50, 450, 50) # observation indices
+	obs = p0.handle(x)[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+	plt.figure(2)
+	plt.plot(x, p0.handle(x))
+	plt.plot(x[x0_ind], obs, 'r.')
 	
 	
 """
@@ -61,16 +67,6 @@ if __name__ == "__main__":
 	DI_vecfnc_var = lambda u_modes: DI_vecfnc(evalmodes(u_modes, x), u_modes)
 	D2I_matrix_var = lambda u_modes: D2I_matrix(evalmodes(u_modes, x), u_modes)
 	Lhd = lambda u_modes: Likelihood(x, evalmodes(u_modes, x), u_modes, g, x0_ind, pplus, pminus, y, beta, alpha, gamma)
-	
-	
-	u_modes = sampleprior(mean, alpha, beta)
-	
-	
-	# convert from fourier space to spatial coordinates
-	u = evalmodes(u_modes, x)
-	
-	# actual permeability
-	k = np.exp(u)
 	
 	# solve forward problem for log permeability u
 	p, C = F(x, u, g, pplus, pminus)

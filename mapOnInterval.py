@@ -46,6 +46,7 @@ class mapOnInterval():
 
 def integrate(x, f, primitive=True): 
 	# integrates fncvals over x, returns primitive if primitive==True and integral over x if primitive==False
+	fncvals = f.values
 	assert(len(x) == len(fncvals))
 	delx = x[1]-x[0]
 	if not primitive:
@@ -54,7 +55,7 @@ def integrate(x, f, primitive=True):
 	res = np.zeros_like(fncvals)
 	res[0] = fncvals[0]*delx # should not be used for plotting etc. but is needed for compatibility with differentiate
 	for i, val in enumerate(x[1:]): # this is slow!
-		y = np.trapz(v.values[0:i+2], dx=delx)
+		y = np.trapz(fncvals[0:i+2], dx=delx)
 		res[i+1] = y
 	return res
 

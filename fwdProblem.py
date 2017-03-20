@@ -11,9 +11,11 @@ class linEllipt():
 
 	def solve(self, x, k):
 		# solves -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
-		I_1 = moi.integrate(x, 1.0/k)
+		kinv = moi.mapOnInterval("handle", lambda x: 1/k.handle(x))
+		I_1 = moi.integrate(x, kinv)
 		I_2 = moi.integrate(x, self.g)
-		I_3 = moi.integrate(x, I_2/k)
+		I_2timeskinv = moi.mapOnInterval("expl", I_2/k.values)
+		I_3 = moi.integrate(x, I_2timeskinv)
 		C = (self.pplus - self.pminus + I_3[-1])/(I_1[-1])
-		p = -I_3 + C*I_1 + self.pminus
+		p = moi.mapOnInterval("expl", -I_3 + C*I_1 + self.pminus)
 		return p, C
