@@ -7,12 +7,25 @@ from measures import *
 import mapOnInterval as moi
 
 class inverseProblem():
-	def __init__(self, fwd, prior, obs=None):
+	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
 		# need: type(fwd) == fwdProblem, type(prior) == measure
 		self.fwd = fwd
 		self.prior = prior
+		self.obsind=None
 		self.obs = obs
-	
+		self.gamma = gamma
+	def Ffnc(self, x, u): # F is like forward, but uses logpermeability instead of permeability
+		perm = moi.mapOnInterval("handle", lambda x: np.exp(u.handle(x)))
+		return self.fwd(x, perm)
+	def Gfnc(self, x, u, obsind):
+		if obsind == None:
+			raise ValueError("obsind need to be defined")
+		p = self.Ffnc(x, u)
+		obs = p.handle(x)[obsind]
+		return obs
+	def Phi(self, x, u, obsind, obs):
+		discrepancy = obs-Gfnc(x, u)
+		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 
 if __name__ == "__main__":
 	x = np.linspace(0, 1, 512)
@@ -44,13 +57,14 @@ if __name__ == "__main__":
 	plt.show()
 	
 	# construct solution and observation
-	p0, C = fwd.solve(x, k0)
+	p0 = fwd.solve(x, k0)
 	x0_ind = range(50, 450, 50) # observation indices
 	obs = p0.handle(x)[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 	plt.figure(2)
 	plt.plot(x, p0.handle(x))
 	plt.plot(x[x0_ind], obs, 'r.')
 	
+	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
 """
 	samplefncfromprior = lambda: sampleprior(mean, alpha, beta)
@@ -70,25 +84,6 @@ if __name__ == "__main__":
 	
 	# solve forward problem for log permeability u
 	p, C = F(x, u, g, pplus, pminus)
-	
-	
-	
-	
-	# Now we try to find the MAP point for a given observation
-	# observation position
-	
-	# make observation
-	y = p[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
-	
-	
-	# evaluate "cost functional" I at u
-	#print(I(x, u, u_modes, x0_ind, y, beta, alpha, gamma))
-	
-	# shortcut for Phi and sample:
-	
-	u0_modes = samplefncfromprior()
-	u0 = evalmodes(u0_modes, x)
-	
 	
 	uHist_modes = randomwalk(u0, u0_modes, samplefncfromprior, PhiOfU, delta, 150, NBurnIn = 10)
 	pHist = np.zeros((uHist_modes.shape[0], u0.shape[0]))
