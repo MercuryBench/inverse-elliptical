@@ -50,5 +50,21 @@ class GaussianFourier(measure):
 		return self
 	
 class GaussianWavelet(measure):
-	pass
-
+	def __init__(self, mean, s, beta, maxJ):
+		self._mean = mean
+		self.s = s
+		self.beta = beta
+		self.maxJ = maxJ # cutoff frequency
+	
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
+		coeffs = [np.random.normal(0, 2**(-j/2), (2**j,)) for j in range(maxJ)]
+	
+	def covInnerProd(u1, u2):
+		pass
+		
+	@property
+	def mean(self):
+		return self._mean

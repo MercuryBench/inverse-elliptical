@@ -20,7 +20,7 @@ class inverseProblem():
 		# if g == None, then we take the default right hand side
 		perm = moi.mapOnInterval("handle", lambda x: np.exp(u.handle(x)))
 		return self.fwd.solve(x, perm, g, pplus, pminus)
-	def DFfnc(self, x, u, h): # in this routine, we work with np arrays instead of the whole functions, should save time
+	def DFfnc(self, x, u, h):
 		p = self.Ffnc(x, u)
 		h_arr = h.values
 		u_arr = u.values
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 	
 	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
-	uHist = ip.randomwalk(prior.sample(), obs, delta, 150)
+	uHist = ip.randomwalk(prior.sample(), obs, delta, 50)
 	plt.figure(3)
 	
 	for uh in uHist:
