@@ -9,7 +9,7 @@ class linEllipt():
 		self.pplus = pplus
 		self.pminus = pminus
 
-	def solveLinEllipt(x, k):
+	def solve(self, x, k):
 		# solves -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
 		I_1 = moi.integrate(x, 1.0/k)
 		I_2 = moi.integrate(x, self.g)
