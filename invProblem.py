@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, pi
 from fwdProblem import *
 from measures import *
-from mapOnInterval import *
+import mapOnInterval as moi
 
 class inverseProblem():
 	def __init__(self, fwd, prior, obs=None):
@@ -26,17 +26,24 @@ if __name__ == "__main__":
 	pplus = 2.0
 	pminus = 1.0	
 	# right hand side of forward problem
-	g = mapOnInterval("handle", lambda x: 1.0*x*(1-x))	
+	g = moi.mapOnInterval("handle", lambda x: 1.0*x*(1-x))	
 	# construct forward problem
 	fwd = linEllipt(g, pplus, pminus)
 	
 	# prior measure:
-	alpha = 3.0
+	alpha = 0.7
 	beta = 0.2
-	mean = np.zeros((30,))
+	mean = np.zeros((31,))
 	prior = GaussianFourier(mean, alpha, beta)
 	
 	u0 = prior.sample()
+	k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
+	plt.figure(1)
+	plt.ion()
+	plt.plot(x, u0.handle(x))
+	plt.show()
+	
+	
 	
 	
 """
