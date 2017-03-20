@@ -44,6 +44,8 @@ class mapOnInterval():
 		else:
 			raise ValueError("inittype neither expl nor fourier nor wavelet")
 
+##### So far: integrate and differentiate yield only np-arrays instead of moi functions! Maybe fix this in the future
+
 def integrate(x, f, primitive=True): 
 	# integrates fncvals over x, returns primitive if primitive==True and integral over x if primitive==False
 	fncvals = f.values
@@ -58,6 +60,14 @@ def integrate(x, f, primitive=True):
 		y = np.trapz(fncvals[0:i+2], dx=delx)
 		res[i+1] = y
 	return res
+	
+def differentiate(x, f): # finite differences
+	fncvals = f.values
+	fprime = np.zeros_like(fncvals)
+	fprime[1:] = (fncvals[1:]-fncvals[:-1])/(x[1]-x[0])
+	fprime[0] = fprime[1]
+	return fprime
+	
 
 def evalmodes(modesvec, x):
 	# evaluates fourier space decomposition in state space

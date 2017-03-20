@@ -11,21 +11,68 @@ class inverseProblem():
 		# need: type(fwd) == fwdProblem, type(prior) == measure
 		self.fwd = fwd
 		self.prior = prior
-		self.obsind=None
+		self.obsind = obsind
 		self.obs = obs
 		self.gamma = gamma
-	def Ffnc(self, x, u): # F is like forward, but uses logpermeability instead of permeability
+		
+	# Forward operators and their derivatives:	
+	def Ffnc(self, x, u, g=None): # F is like forward, but uses logpermeability instead of permeability
+		# if g == None, then we take the default right hand side
 		perm = moi.mapOnInterval("handle", lambda x: np.exp(u.handle(x)))
 		return self.fwd(x, perm)
-	def Gfnc(self, x, u, obsind):
-		if obsind == None:
+	def DFfnc(self, x, u, h):
+		p = F(x, u)
+		pprime = moi.differentiate(x, p)
+		tempfnc = moi.mapOnInterval("expl", h.values*np.exp(u.values)*pprime
+		rhs = moi.differentiate(x, tempfnc)
+		p1 = self.Ffnc(x, u, rhs, 0, 0)
+"""		
+def DF_long(x, u, g, pplus, pminus, h): # RECOMMENDED
+	p, C = F(x, u, g, pplus, pminus)
+	pprime = differentiate(x, p)
+	rhs = differentiate(x, h*np.exp(u)*pprime)
+	p1, C = F(x, u, rhs, 0, 0)
+	return p1
+
+def D2F_long(x, u, g, pplus, pminus, h1, h2): # THIS WORKS! make this better: replace differentiation of trigonometric sums by algebraic method differentiate_modes. THIS NEEDS TO BE CHANGED TO THE STRANGE NEW FOURIER BASIS
+	p, C = F(x, u, g, pplus, pminus)
+	pprime = differentiate(x, p)
+	rhs1 = differentiate(x, np.exp(u)*h1*pprime)
+	rhs2 = differentiate(x, np.exp(u)*h2*pprime)
+	p1, C = F(x, u, rhs1, 0.0, 0.0)
+	p2, C = F(x, u, rhs2, 0.0, 0.0)
+	p1prime = differentiate(x, p1)
+	p2prime = differentiate(x, p2)
+	rhs11 = differentiate(x, np.exp(u)*(h1*p2prime + h2*p1prime))
+	rhs22 = differentiate(x, np.exp(u)*h1*h2*pprime)
+	p22, C = F(x, u, rhs22, 0.0, 0.0)
+	p11, C = F(x, u, rhs11, 0.0, 0.0)
+	return p11+p22"""
+	
+	
+	def Gfnc(self, x, u):
+		if self.obsind == None:
 			raise ValueError("obsind need to be defined")
 		p = self.Ffnc(x, u)
-		obs = p.handle(x)[obsind]
+		obs = p.handle(x)[self.obsind]
 		return obs
-	def Phi(self, x, u, obsind, obs):
+	def DGfnc(self, x, u, h):
+		pass
+"""		
+def DG(x, u, g, x0_ind, pplus, pminus, h):
+	Dp = DF_long(x, u, g, pplus, pminus, h)
+	return Dp[x0_ind]
+
+def D2G(x, u, g, x0_ind, pplus, pminus, h1, h2):
+	D2p = D2F_long(x, u, g, pplus, pminus, h1, h2)
+	return D2p[x0_ind]"""
+	
+	
+	def Phi(self, x, u, obs):
 		discrepancy = obs-Gfnc(x, u)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
+	def I(self, x, u, obs):
+		return self.Phi(x, u, obs) + 1.0/2*prior.covInnerProd(u, u)
 
 if __name__ == "__main__":
 	x = np.linspace(0, 1, 512)
@@ -67,8 +114,6 @@ if __name__ == "__main__":
 	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
 """
-	samplefncfromprior = lambda: sampleprior(mean, alpha, beta)
-	PhiOfU = lambda u: Phi(x, u, g, x0_ind, y, gamma, pplus, pminus)
 	# shortcut for I
 	Ifnc = lambda u, u_modes: I(x, u, u_modes, g, x0_ind, pplus, pminus, y, beta, alpha, gamma)
 	# shortcut for DI
