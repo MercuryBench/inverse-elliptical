@@ -1,5 +1,5 @@
 from __future__ import division
-from abc import ABCMeta
+from abc import ABCMeta, abstractmethod, abstractproperty
 import numpy as np
 import mapOnInterval as moi
 
