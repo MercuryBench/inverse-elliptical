@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin, cos, pi, sqrt, log, pi
+from math import sin, cos, pi, sqrt, log, pi, exp
 from fwdProblem import *
 from measures import *
 import mapOnInterval as moi
@@ -64,6 +64,40 @@ class inverseProblem():
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 	def I(self, x, u, obs):
 		return self.Phi(x, u, obs) + 1.0/2*prior.covInnerProd(u, u)
+	
+	def randomwalk(uStart, obs, delta, N): # for efficiency, only save fourier modes, not whole function
+		uHist = [uStart]
+		u = uStart
+		u_modes = uStart.fouriermodes
+		for n in range(N):
+			v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
+			v = moi.mapOnInterval("fourier", v_modes)
+			alpha = min(1, exp(self.Phi(x, u, obs) - self.Phi(x, v, obs)))
+			r = np.random.uniform()
+			if r < alpha:
+				u = v
+				u_modes = v_modes
+			uHist.append(u_modes)
+		return uHist
+	
+	"""def randomwalk(u0, u0_modes, samplefncfromprior, PhiOfU, delta, N, NBurnIn = 10):
+		uHist = np.zeros((N-NBurnIn,len(u0_modes)))
+		u_modes = u0_modes
+		u = u0
+		for n in range(N):
+			v_modes = math.sqrt(1-2*delta)*u_modes + math.sqrt(2*delta)*samplefncfromprior()
+			v = evalmodes(v_modes, x)
+			alpha = min(1, np.exp(PhiOfU(u)-PhiOfU(v) ) )
+			r = np.random.uniform()
+			if r < alpha:
+				u = v
+				u_modes = v_modes
+				if n >= NBurnIn:
+					uHist[n-NBurnIn, :] = u_modes
+			else:
+				if n>= NBurnIn:
+					uHist[n-NBurnIn, :] = u_modes
+		return uHist"""
 
 if __name__ == "__main__":
 	x = np.linspace(0, 1, 512)
