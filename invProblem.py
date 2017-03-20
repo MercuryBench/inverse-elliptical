@@ -23,32 +23,28 @@ class inverseProblem():
 	def DFfnc(self, x, u, h):
 		p = F(x, u)
 		pprime = moi.differentiate(x, p)
-		tempfnc = moi.mapOnInterval("expl", h.values*np.exp(u.values)*pprime
+		tempfnc = moi.mapOnInterval("expl", h.values*np.exp(u.values)*pprime)
 		rhs = moi.differentiate(x, tempfnc)
 		p1 = self.Ffnc(x, u, rhs, 0, 0)
-"""		
-def DF_long(x, u, g, pplus, pminus, h): # RECOMMENDED
-	p, C = F(x, u, g, pplus, pminus)
-	pprime = differentiate(x, p)
-	rhs = differentiate(x, h*np.exp(u)*pprime)
-	p1, C = F(x, u, rhs, 0, 0)
-	return p1
-
-def D2F_long(x, u, g, pplus, pminus, h1, h2): # THIS WORKS! make this better: replace differentiation of trigonometric sums by algebraic method differentiate_modes. THIS NEEDS TO BE CHANGED TO THE STRANGE NEW FOURIER BASIS
-	p, C = F(x, u, g, pplus, pminus)
-	pprime = differentiate(x, p)
-	rhs1 = differentiate(x, np.exp(u)*h1*pprime)
-	rhs2 = differentiate(x, np.exp(u)*h2*pprime)
-	p1, C = F(x, u, rhs1, 0.0, 0.0)
-	p2, C = F(x, u, rhs2, 0.0, 0.0)
-	p1prime = differentiate(x, p1)
-	p2prime = differentiate(x, p2)
-	rhs11 = differentiate(x, np.exp(u)*(h1*p2prime + h2*p1prime))
-	rhs22 = differentiate(x, np.exp(u)*h1*h2*pprime)
-	p22, C = F(x, u, rhs22, 0.0, 0.0)
-	p11, C = F(x, u, rhs11, 0.0, 0.0)
-	return p11+p22"""
-	
+		return p1
+	def D2Ffnc(self, x, u, h1, h2): 
+		p = F(x, u)
+		pprime = moi.differentiate(x, p)
+		tempfnc1 = moi.mapOnInterval("expl", h1.values*np.exp(u.values)*pprime)
+		rhs1 = moi.differentiate(x, tempfnc)
+		tempfnc2 = moi.mapOnInterval("expl", h2.values*np.exp(u.values)*pprime)
+		rhs2 = moi.differentiate(x, tempfnc)
+		p1 = F(x, u, rhs1, 0, 0)
+		p2 = F(x, u, rhs2, 0, 0)
+		p1prime = moi.differentiate(x, p1)
+		p2prime = moi.differentiate(x, p2)
+		tempfnc11 = moi.mapOnInterval("expl", np.exp(u.values)*(h1.values*p2prime + h2.values*p1prime))
+		tempfnc22 = moi.mapOnInterval("expl", np.exp(u.values)*(h1.values*h2*values*pprime))
+		rhs11 = moi.differentiate(x, tempfnc11)
+		rhs22 = moi.differentiate(x, tempfnc22)
+		p22 = F(x, u, rhs22, 0, 0)
+		p11 = F(x, u, rhs11, 0, 0)
+		return moi.mapOnInterval("expl", p11.values + p22.values)
 	
 	def Gfnc(self, x, u):
 		if self.obsind == None:
@@ -57,16 +53,11 @@ def D2F_long(x, u, g, pplus, pminus, h1, h2): # THIS WORKS! make this better: re
 		obs = p.handle(x)[self.obsind]
 		return obs
 	def DGfnc(self, x, u, h):
-		pass
-"""		
-def DG(x, u, g, x0_ind, pplus, pminus, h):
-	Dp = DF_long(x, u, g, pplus, pminus, h)
-	return Dp[x0_ind]
-
-def D2G(x, u, g, x0_ind, pplus, pminus, h1, h2):
-	D2p = D2F_long(x, u, g, pplus, pminus, h1, h2)
-	return D2p[x0_ind]"""
-	
+		Dp = DFfnc(x, u, h)
+		return Dp.handle(x)[self.obsind]
+	def D2Gfnc(self, x, u, h1, h2):
+		D2p = D2Ffnc(x, u, h1, h2)
+		return D2p.handle(x)[self.obsind]
 	
 	def Phi(self, x, u, obs):
 		discrepancy = obs-Gfnc(x, u)
@@ -109,6 +100,7 @@ if __name__ == "__main__":
 	obs = p0.handle(x)[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 	plt.figure(2)
 	plt.plot(x, p0.handle(x))
+	
 	plt.plot(x[x0_ind], obs, 'r.')
 	
 	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
