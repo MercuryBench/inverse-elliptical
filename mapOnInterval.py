@@ -26,21 +26,21 @@ class mapOnInterval():
 		
 		if inittype == "expl": # no Fourier expansion!
 			self.values = param
-			self.waveletcoeffs = hW.waveletanalysis(self.values)
+			#self.waveletcoeffs = hW.waveletanalysis(self.values)
 			self.handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=3, ext=3)
 		elif inittype == "fourier":
 			self.fouriermodes = param # odd cardinality!!
 			self.values = evalmodes(self.fouriermodes, np.linspace(0, 1, numSpatialPoints, endpoint=False))
-			self.waveletcoeffs = hW.waveletanalysis(self.values)
+			#self.waveletcoeffs = hW.waveletanalysis(self.values)
 			self.handle = lambda x: evalmodes(self.fouriermodes, x)
 		elif inittype == "wavelet": # no Fourier expansion!
 			self.waveletcoeffs = param
 			self.values = hW.waveletsynthesis(self.waveletcoeffs)
-			self.handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=3, ext=3)
+			#self.handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=3, ext=3)
 		elif inittype == "handle":
 			self.handle = np.vectorize(param)
 			self.values = self.handle(np.linspace(0, 1, numSpatialPoints, endpoint=False))
-			self.waveletcoeffs = hW.waveletanalysis(self.values)
+			#self.waveletcoeffs = hW.waveletanalysis(self.values)
 		else:
 			raise ValueError("inittype neither expl nor fourier nor wavelet")
 
@@ -48,7 +48,10 @@ class mapOnInterval():
 
 def integrate(x, f, primitive=True): 
 	# integrates fncvals over x, returns primitive if primitive==True and integral over x if primitive==False
-	fncvals = f.values
+	if isinstance(f, mapOnInterval):
+		fncvals = f.values
+	else: 
+		raise Exception()
 	assert(len(x) == len(fncvals))
 	delx = x[1]-x[0]
 	if not primitive:
@@ -59,15 +62,17 @@ def integrate(x, f, primitive=True):
 	for i, val in enumerate(x[1:]): # this is slow!
 		y = np.trapz(fncvals[0:i+2], dx=delx)
 		res[i+1] = y
-	return res
+	return mapOnInterval("expl", res)
 	
 def differentiate(x, f): # finite differences
-	fncvals = f.values
+	if isinstance(f, mapOnInterval):
+		fncvals = f.values
+	else:
+		raise Exception()
 	fprime = np.zeros_like(fncvals)
 	fprime[1:] = (fncvals[1:]-fncvals[:-1])/(x[1]-x[0])
 	fprime[0] = fprime[1]
-	return fprime
-	
+	return mapOnInterval("expl", fprime)
 
 def evalmodes(modesvec, x):
 	# evaluates fourier space decomposition in state space

@@ -16,34 +16,43 @@ class inverseProblem():
 		self.gamma = gamma
 		
 	# Forward operators and their derivatives:	
-	def Ffnc(self, x, u, g=None): # F is like forward, but uses logpermeability instead of permeability
+	def Ffnc(self, x, u, g=None, pplus=None, pminus=None): # F is like forward, but uses logpermeability instead of permeability
 		# if g == None, then we take the default right hand side
 		perm = moi.mapOnInterval("handle", lambda x: np.exp(u.handle(x)))
-		return self.fwd(x, perm)
-	def DFfnc(self, x, u, h):
-		p = F(x, u)
+		return self.fwd.solve(x, perm, g, pplus, pminus)
+	def DFfnc(self, x, u, h): # in this routine, we work with np arrays instead of the whole functions, should save time
+		p = self.Ffnc(x, u)
+		h_arr = h.values
+		u_arr = u.values
 		pprime = moi.differentiate(x, p)
-		tempfnc = moi.mapOnInterval("expl", h.values*np.exp(u.values)*pprime)
+		tempfnc = moi.mapOnInterval("expl", h.values*np.exp(u.values)*pprime.values)
 		rhs = moi.differentiate(x, tempfnc)
 		p1 = self.Ffnc(x, u, rhs, 0, 0)
 		return p1
 	def D2Ffnc(self, x, u, h1, h2): 
-		p = F(x, u)
+		p = self.Ffnc(x, u)
+		#h1_arr = h1.values
+		#h2_arr = h2.values
+		#u_arr = u.values
 		pprime = moi.differentiate(x, p)
-		tempfnc1 = moi.mapOnInterval("expl", h1.values*np.exp(u.values)*pprime)
-		rhs1 = moi.differentiate(x, tempfnc)
-		tempfnc2 = moi.mapOnInterval("expl", h2.values*np.exp(u.values)*pprime)
-		rhs2 = moi.differentiate(x, tempfnc)
-		p1 = F(x, u, rhs1, 0, 0)
-		p2 = F(x, u, rhs2, 0, 0)
+		tempfnc1 = moi.mapOnInterval("expl", h1.values*np.exp(u.values)*pprime.values)
+		rhs1 = moi.differentiate(x, tempfnc1)
+		#rhs1 = moi.differentiate(x, h1_arr*np.exp(u_arr)*pprime_arr)
+		#rhs2 = moi.differentiate(x, h2_arr*np.exp(u_arr)*pprime_arr)
+		tempfnc2 = moi.mapOnInterval("expl", h2.values*np.exp(u.values)*pprime.values)
+		rhs2 = moi.differentiate(x, tempfnc2)
+		p1 = self.Ffnc(x, u, rhs1, 0, 0)
+		p2 = self.Ffnc(x, u, rhs2, 0, 0)
 		p1prime = moi.differentiate(x, p1)
 		p2prime = moi.differentiate(x, p2)
-		tempfnc11 = moi.mapOnInterval("expl", np.exp(u.values)*(h1.values*p2prime + h2.values*p1prime))
-		tempfnc22 = moi.mapOnInterval("expl", np.exp(u.values)*(h1.values*h2*values*pprime))
+		tempfnc11 = moi.mapOnInterval("expl", np.exp(u.values)*(h1.values*p2prime.values + h2.values*p1prime.values))
+		tempfnc22 = moi.mapOnInterval("expl", np.exp(u.values)*(h1.values*h2.values*pprime.values))
 		rhs11 = moi.differentiate(x, tempfnc11)
 		rhs22 = moi.differentiate(x, tempfnc22)
-		p22 = F(x, u, rhs22, 0, 0)
-		p11 = F(x, u, rhs11, 0, 0)
+		#rhs11 = moi.differentiate(x, np.exp(u_arr)*(h1_arr*p2prime + h2_arr*p1prime))
+		#rhs11 = moi.differentiate(x, np.exp(u_arr)*(h1_arr*h2_arr*pprime_arr))
+		p22 = self.Ffnc(x, u, rhs22, 0, 0)
+		p11 = self.Ffnc(x, u, rhs11, 0, 0)
 		return moi.mapOnInterval("expl", p11.values + p22.values)
 	
 	def Gfnc(self, x, u):
@@ -60,15 +69,15 @@ class inverseProblem():
 		return D2p.handle(x)[self.obsind]
 	
 	def Phi(self, x, u, obs):
-		discrepancy = obs-Gfnc(x, u)
+		discrepancy = obs-self.Gfnc(x, u)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 	def I(self, x, u, obs):
 		return self.Phi(x, u, obs) + 1.0/2*prior.covInnerProd(u, u)
 	
-	def randomwalk(uStart, obs, delta, N): # for efficiency, only save fourier modes, not whole function
-		uHist = [uStart]
+	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save fourier modes, not whole function
 		u = uStart
 		u_modes = uStart.fouriermodes
+		uHist = [u_modes]
 		for n in range(N):
 			v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
 			v = moi.mapOnInterval("fourier", v_modes)
@@ -79,29 +88,10 @@ class inverseProblem():
 				u_modes = v_modes
 			uHist.append(u_modes)
 		return uHist
-	
-	"""def randomwalk(u0, u0_modes, samplefncfromprior, PhiOfU, delta, N, NBurnIn = 10):
-		uHist = np.zeros((N-NBurnIn,len(u0_modes)))
-		u_modes = u0_modes
-		u = u0
-		for n in range(N):
-			v_modes = math.sqrt(1-2*delta)*u_modes + math.sqrt(2*delta)*samplefncfromprior()
-			v = evalmodes(v_modes, x)
-			alpha = min(1, np.exp(PhiOfU(u)-PhiOfU(v) ) )
-			r = np.random.uniform()
-			if r < alpha:
-				u = v
-				u_modes = v_modes
-				if n >= NBurnIn:
-					uHist[n-NBurnIn, :] = u_modes
-			else:
-				if n>= NBurnIn:
-					uHist[n-NBurnIn, :] = u_modes
-		return uHist"""
 
 if __name__ == "__main__":
 	x = np.linspace(0, 1, 512)
-	gamma = 0.1
+	gamma = 0.02
 	delta = 0.05
 	
 	# boundary values for forward problem
@@ -131,14 +121,46 @@ if __name__ == "__main__":
 	# construct solution and observation
 	p0 = fwd.solve(x, k0)
 	x0_ind = range(50, 450, 50) # observation indices
-	obs = p0.handle(x)[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+	obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 	plt.figure(2)
-	plt.plot(x, p0.handle(x))
+	plt.plot(x, p0.handle(x), 'k')
 	
 	plt.plot(x[x0_ind], obs, 'r.')
 	
 	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
+	uHist = ip.randomwalk(prior.sample(), obs, delta, 150)
+	plt.figure(3)
+	
+	for uh in uHist:
+		plt.plot(x, moi.evalmodes(uh, x))
+	uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
+	pHist_mean = ip.Ffnc(x, uHist_mean)
+	pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
+	
+	plt.plot(x, uHist_mean.handle(x), 'g', linewidth=4)
+	plt.plot(x, moi.evalmodes(uHist[0], x), 'r', linewidth=4)
+	plt.plot(x, u0.values, 'k', linewidth=4)
+	
+	plt.figure(2)
+	plt.plot(x, pStart.handle(x), 'r')
+	plt.plot(x, pHist_mean.handle(x), 'g')
+	
+	# test gradient calculation
+	h = moi.mapOnInterval("handle", lambda x: u0.handle(x) - uHist_mean.handle(x))
+	DFuh = ip.DFfnc(x, uHist_mean, h)
+	D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
+	plt.figure(4)
+	plt.plot(x, pHist_mean.handle(x), 'r')
+	plt.plot(x, p0.handle(x), 'g')
+	T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
+	T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
+	plt.plot(x, T1.handle(x), 'b')
+	plt.plot(x, T2.handle(x), 'k')
+	#h = u - uMAP
+	#h_modes = u_modes - uMAP_modes 
+	#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
+	#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
 """
 	# shortcut for I
 	Ifnc = lambda u, u_modes: I(x, u, u_modes, g, x0_ind, pplus, pminus, y, beta, alpha, gamma)

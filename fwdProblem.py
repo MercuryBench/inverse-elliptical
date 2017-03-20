@@ -22,10 +22,10 @@ class linEllipt():
 			pplus = self.pplus
 		if pminus == None:
 			pminus = self.pminus
-		I_2timeskinv = moi.mapOnInterval("expl", I_2/k.values)
+		I_2timeskinv = moi.mapOnInterval("expl", I_2.values/k.values)
 		I_3 = moi.integrate(x, I_2timeskinv)
-		C = (pplus - pminus + I_3[-1])/(I_1[-1])
-		p = moi.mapOnInterval("expl", -I_3 + C*I_1 + pminus)
+		C = (pplus - pminus + I_3.values[-1])/(I_1.values[-1])
+		p = moi.mapOnInterval("expl", -I_3.values + C*I_1.values + pminus)
 		if returnC:
 			return p, C
 		else:

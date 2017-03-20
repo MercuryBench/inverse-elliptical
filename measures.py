@@ -52,5 +52,3 @@ class GaussianFourier(measure):
 class GaussianWavelet(measure):
 	pass
 
-class Posterior(measure):
-	pass
