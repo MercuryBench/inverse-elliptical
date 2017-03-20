@@ -1,6 +1,7 @@
 from __future__ import division
 from abc import ABCMeta
 import numpy as np
+import mapOnInterval as moi
 
 class measure:
 	__metaclass__ = ABCMeta
@@ -29,11 +30,12 @@ class GaussianFourier(measure):
 		self.eigenvals = np.concatenate((freqs, freqs))
 	
 	def sample(self, M=1):
-		return np.random.normal(0, 1, (M, len(self.mean)))*np.tile(self.eigenvals, (M,1))
+		modes = np.random.normal(0, 1, (M, len(self.mean)))*np.tile(self.eigenvals, (M,1))
+		return moi.mapOnInterval("fourier", modes)
 	
-	def covInnerProd(modes1, modes2):
+	def covInnerProd(u1, u2):
 		N = len(modes1)
-		return np.dot(modes1*self.eigenvals, modes2)
+		return np.dot(u1.fouriermodes*self.eigenvals, u2.fouriermodes)
 		
 	@property
 	def mean(self):
@@ -43,4 +45,8 @@ class GaussianFourier(measure):
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
 	
+class GaussianWavelet(measure):
+	pass
 
+class Posterior(measure):
+	pass
