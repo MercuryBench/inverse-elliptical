@@ -107,6 +107,81 @@ class mapOnInterval():
 			return self._handle
 		else:
 			return self._handle
+	
+	# overloading of basic arithmetic operations, in order to facilitate f + g, f*3 etc. for f,g mapOnInterval instances
+	def __add__(self, m):
+		if isinstance(m, mapOnInterval): # case f + g
+			if self.inittype == "fourier":
+				if m.inittype == "fourier":
+					return mapOnInterval("fourier", self.fouriermodes + m.fouriermodes)
+				else:
+					return mapOnInterval("expl", self.values + m.values)
+			elif self.inittype == "expl":
+				return mapOnInterval("expl", self.values + m.values)
+			elif self.inittype == "wavelet":
+				if m.inittype == "wavelet":
+					return mapOnInterval("wavelet", [w1 + w2 for w1, w2 in zip(self.waveletcoeffs, m.waveletcoeffs)])
+			elif self.inittype == "handle":
+				if m.inittype == "fourier" or m.inittype == "handle":
+					return mapOnInterval("handle", lambda x: self.handle(x) + m.handle(x))
+			else:
+				raise Exception("Wrong value for self.inittype in __add__")
+		else: # case f + number
+			if self.inittype == "handle":
+				return mapOnInterval("handle", lambda x: self.handle(x) + m)
+			else:
+				return mapOnInterval("expl", self.values + m)
+	
+	def __sub__(self, m):
+		if isinstance(m, mapOnInterval): # case f - g
+			if self.inittype == "fourier":
+				if m.inittype == "fourier":
+					return mapOnInterval("fourier", self.fouriermodes - m.fouriermodes)
+				else:
+					return mapOnInterval("expl", self.values - m.values)
+			elif self.inittype == "expl":
+				return mapOnInterval("expl", self.values - m.values)
+			elif self.inittype == "wavelet":
+				if m.inittype == "wavelet":
+					return mapOnInterval("wavelet", [w1 - w2 for w1, w2 in zip(self.waveletcoeffs, m.waveletcoeffs)])
+			elif self.inittype == "handle":
+				if m.inittype == "fourier" or m.inittype == "handle":
+					return mapOnInterval("handle", lambda x: self.handle(x) - m.handle(x))
+			else:
+				raise Exception("Wrong value for self.inittype in __add__")
+		else: # case f - number
+			if self.inittype == "handle":
+				return mapOnInterval("handle", lambda x: self.handle(x) - m)
+			else:
+				return mapOnInterval("expl", self.values - m)
+	
+	def __mul__(self, m):
+		if isinstance(m, mapOnInterval): # case f * g
+			if self.inittype == "fourier":
+				return mapOnInterval("expl", self.values * m.values)
+			elif self.inittype == "expl":
+				return mapOnInterval("expl", self.values * m.values)
+			elif self.inittype == "wavelet":
+				return mapOnInterval("expl", self.values * m.values)
+			elif self.inittype == "handle":
+				if m.inittype == "fourier" or m.inittype == "handle":
+					return mapOnInterval("handle", lambda x: self.handle(x) * m.handle(x))
+			else:
+				raise Exception("Wrong value for self.inittype in __add__")
+		else: # case f * number
+			if self.inittype == "handle":
+				return mapOnInterval("handle", lambda x: self.handle(x) * m)
+			elif self.inittype == "wavelet":
+				return mapOnInterval("wavelet", [w1 * m for w1 in self.waveletcoeffs])
+			elif self.inittype == "fourier":
+				return mapOnInterval("fourier", [fm * m for fm in self.fouriermodes])
+			else:
+				return mapOnInterval("expl", self.values * m)
+	def __div__(self, m):
+		raise Exception("use f * 1/number for f/number")
+	def __truediv__(self, m):
+		return self.__div__(m)
+			
 
 ##### So far: integrate and differentiate yield only np-arrays instead of moi functions! Maybe fix this in the future
 
@@ -159,5 +234,9 @@ if __name__ == "__main__":
 	
 	f3 = mapOnInterval("handle", lambda x: sin(3*x)-x**2*cos(x))
 	#hW.plotApprox(x, f3.waveletcoeffs)
+	
+	
+	hW.plotApprox(x, (f1*f3).waveletcoeffs)
+	plt.show()
 	
 	

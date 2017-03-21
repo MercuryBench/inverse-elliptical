@@ -91,7 +91,7 @@ class inverseProblem():
 
 if __name__ == "__main__":
 	x = np.linspace(0, 1, 512)
-	gamma = 0.02
+	gamma = 0.1
 	delta = 0.05
 	
 	# boundary values for forward problem
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 	pplus = 2.0
 	pminus = 1.0	
 	# right hand side of forward problem
-	g = moi.mapOnInterval("handle", lambda x: 1.0*x*(1-x))	
+	g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
 	# construct forward problem
 	fwd = linEllipt(g, pplus, pminus)
 	
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 	
 	# construct solution and observation
 	p0 = fwd.solve(x, k0)
-	x0_ind = range(50, 450, 50) # observation indices
+	x0_ind = range(10, 490, 10) # observation indices
 	obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 	plt.figure(2)
 	plt.plot(x, p0.handle(x), 'k')
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 	
 	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
-	uHist = ip.randomwalk(prior.sample(), obs, delta, 50)
+	uHist = ip.randomwalk(prior.sample(), obs, delta, 150)
 	plt.figure(3)
 	
 	for uh in uHist:
@@ -151,12 +151,13 @@ if __name__ == "__main__":
 	DFuh = ip.DFfnc(x, uHist_mean, h)
 	D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
 	plt.figure(4)
-	plt.plot(x, pHist_mean.handle(x), 'r')
-	plt.plot(x, p0.handle(x), 'g')
+	plt.plot(x, pHist_mean.handle(x), 'g')
+	plt.plot(x, p0.handle(x), 'k')
 	T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
 	T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
 	plt.plot(x, T1.handle(x), 'b')
-	plt.plot(x, T2.handle(x), 'k')
+	plt.plot(x, T2.handle(x), 'm')
+	plt.plot(x[x0_ind], obs, 'r.')
 	#h = u - uMAP
 	#h_modes = u_modes - uMAP_modes 
 	#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
