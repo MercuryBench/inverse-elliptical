@@ -49,22 +49,26 @@ class GaussianFourier(measure):
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
 	
-class GaussianWavelet(measure):
-	def __init__(self, mean, s, beta, maxJ):
+class LaplaceWavelet(measure):
+	def __init__(self, kappa, maxJ):
 		self._mean = mean
-		self.s = s
-		self.beta = beta
+		self.kappa = kappa
 		self.maxJ = maxJ # cutoff frequency
 	
 	def sample(self, M=1):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.normal(0, 2**(-j/2), (2**j,)) for j in range(maxJ)]
+		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(maxJ)]
+		return moi.mapOnInterval("wavelet", coeffs)
 	
-	def covInnerProd(u1, u2):
-		pass
+	def norm(self, w):
+		j_besovnorm = np.zeros((J,))
+		for j in range(J):
+			j_besovnorm[j] = np.sum(np.abs(w[j])*2**(j/2))
+		return np.sum(j_besovnorm)
+		
 		
 	@property
 	def mean(self):
-		return self._mean
+		pass

@@ -102,9 +102,9 @@ if __name__ == "__main__":
 	plt.plot(x, ff, 'r')
 	plotApprox(x, w)"""
 	
-	J = 9
+	J = 12
 	x = np.linspace(0, 1, 2**(13), endpoint=False)
-	w = [np.random.laplace(0, 3**(-j)*(1+j)**(-1.5), (2**j,)) for j in range(J)]
+	w = [np.random.laplace(0, 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(J)]
 	j_besovnorm = np.zeros((J,))
 	j_besovnorm_mean = np.zeros((J,))
 	for j in range(J):
@@ -121,6 +121,9 @@ if __name__ == "__main__":
 	
 	plt.figure()
 	plt.plot(besovnorm, '.')
+	
+	plt.figure()
+	plt.plot(x, f[-1])
 
 
 
