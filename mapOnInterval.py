@@ -14,7 +14,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 """
 
 class mapOnInterval():
-	def __init__(self, inittype, param, numSpatialPoints=2**9):
+	def __init__(self, inittype, param, numSpatialPoints=2**9, interpolationdegree=3):
 		# there are three possibilities of initializing a mapOnInterval instance:
 		# 1) By explicit values on a discretization: inittype == "expl"
 		# 2) By Fourier expansion: inittype == "fourier"
@@ -97,11 +97,11 @@ class mapOnInterval():
 	def handle(self):
 		if self._handle is None:
 			if self.inittype == "expl":
-				self._handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=3, ext=3)
+				self._handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=self.interpolationdegree, ext=3)
 			elif self.inittype == "fourier":
 				self._handle = lambda x: evalmodes(self.fouriermodes, x)
 			elif self.inittype == "wavelet":
-				self._handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=3, ext=3)
+				self._handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=self.interpolationdegree, ext=3)
 			else:
 				raise Exception("Wrong value for self.inittype")
 			return self._handle
