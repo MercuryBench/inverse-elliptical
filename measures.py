@@ -56,7 +56,6 @@ class GaussianFourier(measure):
 	
 class LaplaceWavelet(measure):
 	def __init__(self, kappa, maxJ):
-		self._mean = mean
 		self.kappa = kappa
 		self.maxJ = maxJ # cutoff frequency
 	
@@ -64,8 +63,9 @@ class LaplaceWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(maxJ)]
-		return moi.mapOnInterval("wavelet", coeffs)
+		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
+		coeffs[0] = np.array([0]) # zero mass condition
+		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 	
 	def normpart(self, w):
 		j_besovnorm = np.zeros((J,))
@@ -77,3 +77,6 @@ class LaplaceWavelet(measure):
 	@property
 	def mean(self):
 		pass
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")

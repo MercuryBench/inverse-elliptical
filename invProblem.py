@@ -5,6 +5,7 @@ from math import sin, cos, pi, sqrt, log, pi, exp
 from fwdProblem import *
 from measures import *
 import mapOnInterval as moi
+import sys
 
 class inverseProblem():
 	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
@@ -90,78 +91,114 @@ class inverseProblem():
 		return uHist
 
 if __name__ == "__main__":
-	x = np.linspace(0, 1, 512)
-	gamma = 0.1
-	delta = 0.05
+	if len(sys.argv) > 1 and sys.argv[1] == "g":
+		x = np.linspace(0, 1, 512)
+		gamma = 0.1
+		delta = 0.05
 	
-	# boundary values for forward problem
-	# -(k * p')' = g
-	# p(0) = pminus
-	# p(1) = pplus
-	pplus = 2.0
-	pminus = 1.0	
-	# right hand side of forward problem
-	g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
-	# construct forward problem
-	fwd = linEllipt(g, pplus, pminus)
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
 	
-	# prior measure:
-	alpha = 0.7
-	beta = 0.5
-	mean = np.zeros((31,))
-	prior = GaussianFourier(mean, alpha, beta)
+		# prior measure:
+		alpha = 0.7
+		beta = 0.5
+		mean = np.zeros((31,))
+		prior = GaussianFourier(mean, alpha, beta)
 	
-	u0 = prior.sample()
-	k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
-	plt.figure(1)
-	plt.ion()
-	plt.plot(x, u0.handle(x))
-	plt.show()
+		u0 = prior.sample()
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
+		plt.figure(1)
+		plt.ion()
+		plt.plot(x, u0.handle(x))
+		plt.show()
 	
-	# construct solution and observation
-	p0 = fwd.solve(x, k0)
-	x0_ind = range(10, 490, 10) # observation indices
-	obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
-	plt.figure(2)
-	plt.plot(x, p0.handle(x), 'k')
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(10, 490, 10) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+		plt.figure(2)
+		plt.plot(x, p0.handle(x), 'k')
 	
-	plt.plot(x[x0_ind], obs, 'r.')
+		plt.plot(x[x0_ind], obs, 'r.')
 	
-	ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
-	uHist = ip.randomwalk(prior.sample(), obs, delta, 150)
-	plt.figure(3)
+		uHist = ip.randomwalk(prior.sample(), obs, delta, 150)
+		plt.figure(3)
 	
-	for uh in uHist:
-		plt.plot(x, moi.evalmodes(uh, x))
-	uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
-	pHist_mean = ip.Ffnc(x, uHist_mean)
-	pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
+		for uh in uHist:
+			plt.plot(x, moi.evalmodes(uh, x))
+		uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
 	
-	plt.plot(x, uHist_mean.handle(x), 'g', linewidth=4)
-	plt.plot(x, moi.evalmodes(uHist[0], x), 'r', linewidth=4)
-	plt.plot(x, u0.values, 'k', linewidth=4)
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=4)
+		plt.plot(x, moi.evalmodes(uHist[0], x), 'r', linewidth=4)
+		plt.plot(x, u0.values, 'k', linewidth=4)
 	
-	plt.figure(2)
-	plt.plot(x, pStart.handle(x), 'r')
-	plt.plot(x, pHist_mean.handle(x), 'g')
+		plt.figure(2)
+		plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g')
 	
-	# test gradient calculation
-	h = moi.mapOnInterval("handle", lambda x: u0.handle(x) - uHist_mean.handle(x))
-	DFuh = ip.DFfnc(x, uHist_mean, h)
-	D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
-	plt.figure(4)
-	plt.plot(x, pHist_mean.handle(x), 'g')
-	plt.plot(x, p0.handle(x), 'k')
-	T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
-	T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
-	plt.plot(x, T1.handle(x), 'b')
-	plt.plot(x, T2.handle(x), 'm')
-	plt.plot(x[x0_ind], obs, 'r.')
-	#h = u - uMAP
-	#h_modes = u_modes - uMAP_modes 
-	#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
-	#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
+		# test gradient calculation
+		h = moi.mapOnInterval("handle", lambda x: u0.handle(x) - uHist_mean.handle(x))
+		DFuh = ip.DFfnc(x, uHist_mean, h)
+		D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
+		plt.figure(4)
+		plt.plot(x, pHist_mean.handle(x), 'g')
+		plt.plot(x, p0.handle(x), 'k')
+		T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
+		T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
+		plt.plot(x, T1.handle(x), 'b')
+		plt.plot(x, T2.handle(x), 'm')
+		plt.plot(x[x0_ind], obs, 'r.')
+		#h = u - uMAP
+		#h_modes = u_modes - uMAP_modes 
+		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
+		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
+	else:
+		x = np.linspace(0, 1, 512)
+		gamma = 0.1
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+		
+		# prior measure:
+		maxJ = 9
+		kappa = 2.0
+		prior = LaplaceWavelet(kappa, maxJ)
+		u0 = prior.sample()
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
+		plt.figure(1)
+		plt.ion()
+		plt.plot(x, u0.handle(x))
+		plt.show()
+		
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(10, 490, 10) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+		plt.figure(2)
+		plt.plot(x, p0.handle(x), 'k')
+	
+		plt.plot(x[x0_ind], obs, 'r.')
 """
 	# shortcut for I
 	Ifnc = lambda u, u_modes: I(x, u, u_modes, g, x0_ind, pplus, pminus, y, beta, alpha, gamma)
