@@ -68,9 +68,9 @@ class LaplaceWavelet(measure):
 		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 	
 	def normpart(self, w):
-		j_besovnorm = np.zeros((J,))
-		for j in range(J):
-			j_besovnorm[j] = np.sum(np.abs(w[j])*2**(j/2))
+		j_besovnorm = np.zeros((self.maxJ,))
+		for j in range(self.maxJ):
+			j_besovnorm[j] = np.sum(np.abs(w.waveletcoeffs[j])*2**(j/2))
 		return np.sum(j_besovnorm)
 		
 		

@@ -75,25 +75,49 @@ class inverseProblem():
 	def I(self, x, u, obs):
 		return self.Phi(x, u, obs) + prior.normpart(u)
 	
-	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save fourier modes, not whole function
+	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save modes, not whole function
 		u = uStart
-		u_modes = uStart.fouriermodes
-		uHist = [u_modes]
-		for n in range(N):
-			v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
-			v = moi.mapOnInterval("fourier", v_modes)
-			alpha = min(1, exp(self.Phi(x, u, obs) - self.Phi(x, v, obs)))
-			r = np.random.uniform()
-			if r < alpha:
-				u = v
-				u_modes = v_modes
-			uHist.append(u_modes)
-		return uHist
+		
+		if uStart.inittype == "fourier":
+			u_modes = uStart.fouriermodes
+			uHist = [u_modes]
+			for n in range(N):
+				v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
+				v = moi.mapOnInterval("fourier", v_modes)
+				if ip.Phi(x, u, obs) - ip.Phi(x, v, obs) > 1:
+					alpha = 1
+				else:
+					alpha = min(1, exp(ip.Phi(x, u, obs) - ip.Phi(x, v, obs)))
+				r = np.random.uniform()
+				if r < alpha:
+					u = v
+					u_modes = v_modes
+				uHist.append(u_modes)
+			return uHist
+		elif uStart.inittype == "wavelet":
+			u_coeffs = uStart.waveletcoeffs
+			uHist = [u_coeffs]
+			for n in range(N):
+				v_coeffs = []
+				step = prior.sample().waveletcoeffs
+				for n, uwc in enumerate(u.waveletcoeffs):
+					v_coeffs.append(sqrt(1-2*delta)*uwc + sqrt(2*delta)*step[n])
+				v = moi.mapOnInterval("wavelet", v_coeffs)
+				if ip.Phi(x, u, obs) - ip.Phi(x, v, obs) > 1:
+					alpha = 1
+				else:
+					alpha = min(1, exp(ip.Phi(x, u, obs) - ip.Phi(x, v, obs)))
+				r = np.random.uniform()
+				if r < alpha:
+					u = v
+					u_coeffs = v_coeffs
+				uHist.append(u_coeffs)
+			return uHist
 
 if __name__ == "__main__":
 	if len(sys.argv) > 1 and sys.argv[1] == "g":
 		x = np.linspace(0, 1, 512)
-		gamma = 0.1
+		gamma = 0.02
 		delta = 0.05
 	
 		# boundary values for forward problem
@@ -113,7 +137,29 @@ if __name__ == "__main__":
 		mean = np.zeros((31,))
 		prior = GaussianFourier(mean, alpha, beta)
 	
+		# case 1: random ground truth
 		u0 = prior.sample()
+		
+		# case 2: given ground truth
+		J = 9
+		num = 2**J
+		x = np.linspace(0, 1, 2**(J), endpoint=False)
+		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
+		g1 = lambda x: gg1(2**J*x)
+		gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
+		g2 = lambda x: gg2(2**J*x)
+		gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
+		g3 = lambda x: gg3(2**J*x)
+		gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
+		g4 = lambda x: gg4(2**J*x)
+		vec1 = g2(x[0:2**(J-5/2)])
+		vec2 = g1(x[2**(J-5/2):2**(J-1.5)])
+		vec3 = g3(x[2**(J-1.5):2**(J)-2**(J-1.2)])
+		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
+
+		f = np.concatenate((vec1, vec2, vec3, vec4))
+		u0 = moi.mapOnInterval("expl", f)
+		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
 		plt.figure(1)
 		plt.ion()
@@ -166,8 +212,8 @@ if __name__ == "__main__":
 		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
 	else:
 		x = np.linspace(0, 1, 512)
-		gamma = 0.1
-		delta = 0.05
+		gamma = 0.02
+		delta = 0.005
 	
 		# boundary values for forward problem
 		# -(k * p')' = g
@@ -182,9 +228,33 @@ if __name__ == "__main__":
 		
 		# prior measure:
 		maxJ = 9
-		kappa = 2.0
+		kappa = 40.0
 		prior = LaplaceWavelet(kappa, maxJ)
+		
+		# case 1: random ground truth
 		u0 = prior.sample()
+		
+		# case 2: given ground truth
+		J = 9
+		num = 2**J
+		x = np.linspace(0, 1, 2**(J), endpoint=False)
+		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
+		g1 = lambda x: gg1(2**J*x)
+		gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
+		g2 = lambda x: gg2(2**J*x)
+		gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
+		g3 = lambda x: gg3(2**J*x)
+		gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
+		g4 = lambda x: gg4(2**J*x)
+		vec1 = g2(x[0:2**(J-5/2)])
+		vec2 = g1(x[2**(J-5/2):2**(J-1.5)])
+		vec3 = g3(x[2**(J-1.5):2**(J)-2**(J-1.2)])
+		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
+
+		f = np.concatenate((vec1, vec2, vec3, vec4))
+		f = f - np.sum(f)*2**(-9) # normalize
+		u0 = moi.mapOnInterval("expl", f)
+		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		plt.figure(1)
 		plt.ion()
@@ -199,6 +269,66 @@ if __name__ == "__main__":
 		plt.plot(x, p0.handle(x), 'k')
 	
 		plt.plot(x[x0_ind], obs, 'r.')
+		
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# possibility 1: sample start
+		uStart = prior.sample()
+		
+		# possibility 2: specific start
+		ww = uStart.waveletcoeffs
+		for n, w in enumerate(ww):
+			ww[n] = np.zeros_like(w)
+		ww[2] = np.array([0.2, -0.15, -0.05, 0.1])
+		uStart = moi.mapOnInterval("wavelet", ww)
+		
+		
+		uHist = ip.randomwalk(uStart, obs, delta, 4000)
+		plt.figure(3)
+		uHistfnc = []
+		pHistfnc = []
+		IHist = []
+		PhiHist = []
+		"""for uh in uHist:
+			uhfnc = moi.mapOnInterval("wavelet", uh, interpolationdegree=1)
+			pfnc = ip.Ffnc(x, uhfnc)
+			#plt.plot(x, uhfnc.handle(x))
+			uHistfnc.append(uhfnc)
+			pHistfnc.append(pfnc)
+			IHist.append(ip.I(x, uhfnc, obs))
+			PhiHist.append(ip.Phi(x, uhfnc, obs))"""
+		
+		uHist_mean_c = []
+		for j in range(len(uHist[0])):
+			avg = 0
+			for k in range(30, len(uHist)):
+				avg = avg + uHist[k][j]
+			avg = avg/len(uHist)
+			uHist_mean_c.append(avg)
+		
+		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
+	
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1)
+		plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, u0.handle(x), 'k', linewidth=1)
+		
+		plt.figure(2)
+		plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g')
+		plt.plot(x, pHistfnc[-1].handle(x), 'b')
+		
+		"""plt.figure()
+		for pf in pHistfnc:
+			plt.plot(x, pf.handle(x))
+		plt.plot(x, pStart.handle(x), 'r', linewidth=4)
+		plt.plot(x, pHist_mean.handle(x), 'g', linewidth=4)
+		plt.plot(x, p0.handle(x), 'k', linewidth=4)"""
+		
+		#plt.figure()
+		#plt.plot(IHist)
+		#plt.plot(PhiHist, 'r')
 """
 	# shortcut for I
 	Ifnc = lambda u, u_modes: I(x, u, u_modes, g, x0_ind, pplus, pminus, y, beta, alpha, gamma)
