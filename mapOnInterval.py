@@ -22,6 +22,7 @@ class mapOnInterval():
 		self._values = None
 		self._fouriermodes = None
 		self._waveletcoeffs = None
+		self.interpolationdegree = 3
 		self._handle = None
 		self.inittype = inittype
 		self.numSpatialPoints = numSpatialPoints
