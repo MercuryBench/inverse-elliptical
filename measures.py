@@ -2,6 +2,7 @@ from __future__ import division
 from abc import ABCMeta, abstractmethod, abstractproperty
 import numpy as np
 import mapOnInterval as moi
+import math
 
 class measure:
 	__metaclass__ = ABCMeta
@@ -37,9 +38,13 @@ class GaussianFourier(measure):
 		#return modes
 		return moi.mapOnInterval("fourier", modes)
 	
-	def covInnerProd(u1, u2):
+	def covInnerProd(self, u1, u2):
 		N = len(modes1)
 		return np.dot(u1.fouriermodes*self.eigenvals, u2.fouriermodes)
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
 		
 	@property
 	def mean(self):
@@ -62,7 +67,7 @@ class LaplaceWavelet(measure):
 		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(maxJ)]
 		return moi.mapOnInterval("wavelet", coeffs)
 	
-	def norm(self, w):
+	def normpart(self, w):
 		j_besovnorm = np.zeros((J,))
 		for j in range(J):
 			j_besovnorm[j] = np.sum(np.abs(w[j])*2**(j/2))

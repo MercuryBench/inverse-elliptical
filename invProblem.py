@@ -72,7 +72,7 @@ class inverseProblem():
 		discrepancy = obs-self.Gfnc(x, u)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 	def I(self, x, u, obs):
-		return self.Phi(x, u, obs) + 1.0/2*prior.covInnerProd(u, u)
+		return self.Phi(x, u, obs) + prior.normpart(u)
 	
 	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save fourier modes, not whole function
 		u = uStart
