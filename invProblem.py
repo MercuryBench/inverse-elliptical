@@ -5,7 +5,32 @@ from math import sin, cos, pi, sqrt, log, pi, exp
 from fwdProblem import *
 from measures import *
 import mapOnInterval as moi
-import sys
+import pickle
+import time, sys
+
+# update_progress() : Displays or updates a console progress bar
+## Accepts a float between 0 and 1. Any int will be converted to a float.
+## A value under 0 represents a 'halt'.
+## A value at 1 or bigger represents 100%
+def update_progress(progress):
+    barLength = 10 # Modify this to change the length of the progress bar
+    status = ""
+    if isinstance(progress, int):
+        progress = float(progress)
+    if not isinstance(progress, float):
+        progress = 0
+        status = "error: progress var must be float\r\n"
+    if progress < 0:
+        progress = 0
+        status = "Halt...\r\n"
+    if progress >= 1:
+        progress = 1
+        status = "Done...\r\n"
+    block = int(round(barLength*progress))
+    text = "\rPercent: [{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), progress*100, status)
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
 
 class inverseProblem():
 	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
@@ -228,7 +253,7 @@ if __name__ == "__main__":
 		
 		# prior measure:
 		maxJ = 9
-		kappa = 40.0
+		kappa = 100.0
 		prior = LaplaceWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
@@ -267,7 +292,6 @@ if __name__ == "__main__":
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(2)
 		plt.plot(x, p0.handle(x), 'k')
-	
 		plt.plot(x[x0_ind], obs, 'r.')
 		
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
@@ -283,7 +307,7 @@ if __name__ == "__main__":
 		uStart = moi.mapOnInterval("wavelet", ww)
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 4000)
+		uHist = ip.randomwalk(uStart, obs, delta, 6000)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []
@@ -305,6 +329,7 @@ if __name__ == "__main__":
 				avg = avg + uHist[k][j]
 			avg = avg/len(uHist)
 			uHist_mean_c.append(avg)
+			update_progress(j/len(uHist[0]))
 		
 		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
 		pHist_mean = ip.Ffnc(x, uHist_mean)
@@ -318,6 +343,11 @@ if __name__ == "__main__":
 		plt.plot(x, pStart.handle(x), 'r')
 		plt.plot(x, pHist_mean.handle(x), 'g')
 		plt.plot(x, pHistfnc[-1].handle(x), 'b')
+		
+		data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, f, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
+		str = "save_" + datetime.datetime.now().isoformat('_') + ".p"
+
+		pickle.dump(data, open(str, "wb"))
 		
 		"""plt.figure()
 		for pf in pHistfnc:
