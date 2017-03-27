@@ -42,10 +42,16 @@ class inverseProblem():
 		self.gamma = gamma
 		
 	# Forward operators and their derivatives:	
-	def Ffnc(self, x, u, g=None, pplus=None, pminus=None): # F is like forward, but uses logpermeability instead of permeability
+	def Ffnc(self, x, u, g=None, pplus=None, pminus=None, moiMode = False): # F is like forward, but uses logpermeability instead of permeability
 		# if g == None, then we take the default right hand side
-		perm = moi.mapOnInterval("handle", lambda x: np.exp(u.handle(x)))
-		return self.fwd.solve(x, perm, g, pplus, pminus)
+		if moiMode == True:
+			perm = moi.mapOnInterval("expl", np.exp(u.values))
+			ret = self.fwd.solve(x, perm, g, pplus, pminus, moiMode = True)
+			return ret
+		else:
+			ret = self.fwd.solve(x, np.exp(u.values), g, pplus, pminus, moiMode = False)
+			return ret
+		
 	def DFfnc(self, x, u, h):
 		p = self.Ffnc(x, u)
 		h_arr = h.values
@@ -85,7 +91,7 @@ class inverseProblem():
 		if self.obsind == None:
 			raise ValueError("obsind need to be defined")
 		p = self.Ffnc(x, u)
-		obs = p.handle(x)[self.obsind]
+		obs = p.values[self.obsind]
 		return obs
 	def DGfnc(self, x, u, h):
 		Dp = DFfnc(x, u, h)
@@ -101,20 +107,23 @@ class inverseProblem():
 		return self.Phi(x, u, obs) + prior.normpart(u)
 	
 	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save modes, not whole function
+	
 		u = uStart
-		
+		r = np.random.uniform(0, 1, N)
 		if uStart.inittype == "fourier":
 			u_modes = uStart.fouriermodes
 			uHist = [u_modes]
 			for n in range(N):
 				v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
 				v = moi.mapOnInterval("fourier", v_modes)
-				if ip.Phi(x, u, obs) - ip.Phi(x, v, obs) > 1:
+				v1 = ip.Phi(x, u, obs)
+				v2 = ip.Phi(x, v, obs)
+				if v1 - v2 > 1:
 					alpha = 1
 				else:
-					alpha = min(1, exp(ip.Phi(x, u, obs) - ip.Phi(x, v, obs)))
-				r = np.random.uniform()
-				if r < alpha:
+					alpha = min(1, exp(v1 - v2))
+				#r = np.random.uniform()
+				if r[n] < alpha:
 					u = v
 					u_modes = v_modes
 				uHist.append(u_modes)
@@ -122,18 +131,20 @@ class inverseProblem():
 		elif uStart.inittype == "wavelet":
 			u_coeffs = uStart.waveletcoeffs
 			uHist = [u_coeffs]
-			for n in range(N):
+			for m in range(N):
 				v_coeffs = []
 				step = prior.sample().waveletcoeffs
 				for n, uwc in enumerate(u.waveletcoeffs):
 					v_coeffs.append(sqrt(1-2*delta)*uwc + sqrt(2*delta)*step[n])
 				v = moi.mapOnInterval("wavelet", v_coeffs)
-				if ip.Phi(x, u, obs) - ip.Phi(x, v, obs) > 1:
+				v1 = ip.Phi(x, u, obs)
+				v2 = ip.Phi(x, v, obs)
+				if v1 - v2 > 1:
 					alpha = 1
 				else:
-					alpha = min(1, exp(ip.Phi(x, u, obs) - ip.Phi(x, v, obs)))
-				r = np.random.uniform()
-				if r < alpha:
+					alpha = min(1, exp(v1 - v2))
+				#r = np.random.uniform()
+				if r[m] < alpha:
 					u = v
 					u_coeffs = v_coeffs
 				uHist.append(u_coeffs)
@@ -235,7 +246,7 @@ if __name__ == "__main__":
 		#h_modes = u_modes - uMAP_modes 
 		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
 		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
-	else:
+	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.01
 		delta = 0.01
@@ -307,7 +318,7 @@ if __name__ == "__main__":
 		uStart = moi.mapOnInterval("wavelet", ww)
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 20000)
+		uHist = ip.randomwalk(uStart, obs, delta, 200)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []
@@ -359,4 +370,67 @@ if __name__ == "__main__":
 		#plt.figure()
 		#plt.plot(IHist)
 		#plt.plot(PhiHist, 'r')
+		
+	else:
+		x = np.linspace(0, 1, 512)
+		gamma = 0.01
+		delta = 0.01
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+		
+		# prior measure:
+		maxJ = 9
+		kappa = 100.0
+		prior = LaplaceWavelet(kappa, maxJ)
+		
+		# case 1: random ground truth
+		u0 = prior.sample()
+		
+		# case 2: given ground truth
+		J = 9
+		num = 2**J
+		x = np.linspace(0, 1, 2**(J), endpoint=False)
+		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
+		g1 = lambda x: gg1(2**J*x)
+		gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
+		g2 = lambda x: gg2(2**J*x)
+		gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
+		g3 = lambda x: gg3(2**J*x)
+		gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
+		g4 = lambda x: gg4(2**J*x)
+		vec1 = g2(x[0:2**(J-5/2)])
+		vec2 = g1(x[2**(J-5/2):2**(J-1.5)])
+		vec3 = g3(x[2**(J-1.5):2**(J)-2**(J-1.2)])
+		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
 
+		f = np.concatenate((vec1, vec2, vec3, vec4))
+		f = f - np.sum(f)*2**(-9) # normalize
+		u0 = moi.mapOnInterval("expl", f)
+		
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
+		
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 495, 5) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+		plt.figure(2)
+		plt.plot(x, p0.handle(x), 'k')
+		plt.plot(x[x0_ind], obs, 'r.')
+		
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# possibility 1: sample start
+		uStart = prior.sample()
+		st = time.time()
+		uHist = ip.randomwalk(uStart, obs, delta, 1)
+		et = time.time()
+		print(str(et-st))

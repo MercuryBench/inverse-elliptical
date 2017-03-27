@@ -56,7 +56,7 @@ class mapOnInterval():
 			if self.inittype == "fourier":
 				self._values = evalmodes(self.fouriermodes, np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
 			elif self.inittype == "wavelet":
-				self._values = hW.waveletsynthesis(self.waveletcoeffs)
+				self._values = hW.waveletsynthesis(self.waveletcoeffs, np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
 			elif self.inittype == "handle":
 				self._values = self.handle(np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
 			else:

@@ -17,7 +17,8 @@ class linEllipt():
 	def solve(self, x, k, g = None, pplus=None, pminus=None, returnC = False, moiMode = False):
 		# solves -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
 		# if g == None, we take self.g, else we take this as the right hand side (same for pplus and pminus)
-		if moiMode == True:
+		if moiMode == True: #do not use this!
+			
 			kinv = moi.mapOnInterval("handle", lambda x: 1/k.handle(x))
 			I_1 = moi.integrate(x, kinv)
 			if g == None:
@@ -33,7 +34,10 @@ class linEllipt():
 			C = (pplus - pminus + I_3.values[-1])/(I_1.values[-1])
 			p = moi.mapOnInterval("expl", -I_3.values + C*I_1.values + pminus)
 		else: # non-moi mode:
-			kvals = k.values
+			if isinstance(k, moi.mapOnInterval):
+				kvals = k.values
+			else:
+				kvals = k
 			if g == None:
 				g = self.g
 			if pplus == None:
