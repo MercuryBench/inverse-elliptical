@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log
+import time
 
 # CAREFUL: This works only for signals in [0,1]! Also, every signal f has to have number of elements = 2**J for some integer J!
 
@@ -36,14 +37,21 @@ def waveletanalysis(f):
 
 # wavelet synthesis of wavelet decomposition (inverse operation of waveletanalysis)
 def waveletsynthesis(w,xs=None):
-	J = len(w)-1
-	if xs is None:
-		xs = np.linspace(0, 1, 2**J, endpoint=False)
-	f = np.zeros_like(xs) + w[0]
-	for j in range(1, J+1):
-		for k, c in enumerate(w[j]):
-			f = f - c*psi_scale(xs, -j+1, k)
-	#return f/2**(J/2)
+	if True:
+		if xs is None:
+			J = len(w)-1
+			xs = np.linspace(0, 1, 2**J, endpoint=False)
+		else:
+			J = int(log(len(xs), 2))
+		f = np.zeros_like(xs) + w[0]
+		for j in range(1, len(w)):
+			for k, c in enumerate(w[j]):
+				#f = f - c*psi_scale(xs, -j+1, k)
+				psivec = np.zeros_like(xs)
+				psivec[2**(J-j)*k:2**(J-j)*k + 2**(J-j-1)] = 1
+				psivec[2**(J-j)*k + 2**(J-j-1):2**(J-j)*(k+1)] = -1
+				f = f - c*psivec
+		#return f/2**(J/2)
 	return f
 	
 # utility for plotApprox
@@ -102,7 +110,7 @@ if __name__ == "__main__":
 	plt.plot(x, ff, 'r')
 	plotApprox(x, w)"""
 	
-	J = 12
+	J = 9
 	x = np.linspace(0, 1, 2**(13), endpoint=False)
 	w = [np.random.laplace(0, 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(J)]
 	j_besovnorm = np.zeros((J,))
@@ -111,7 +119,10 @@ if __name__ == "__main__":
 		j_besovnorm[j] = np.sum(np.abs(w[j])*2**(j/2))
 		j_besovnorm_mean[j] = np.mean(np.abs(w[j])*2**(j/2))
 	besovnorm = np.cumsum(j_besovnorm)
+	st = time.time()
 	f = [waveletsynthesis(w[0:j], x) for j in range(1, J+1)]
+	et = time.time()
+	print(et-st)
 	plt.figure()
 	plt.ion()
 	for j in range(9):
