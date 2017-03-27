@@ -248,7 +248,7 @@ if __name__ == "__main__":
 		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
-		gamma = 0.01
+		gamma = 0.001
 		delta = 0.01
 	
 		# boundary values for forward problem
@@ -318,7 +318,7 @@ if __name__ == "__main__":
 		uStart = moi.mapOnInterval("wavelet", ww)
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 200)
+		uHist = ip.randomwalk(uStart, obs, delta, 10000)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []

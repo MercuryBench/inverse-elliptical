@@ -64,6 +64,7 @@ class LaplaceWavelet(measure):
 			raise NotImplementedError()
 			return
 		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
+		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
 		coeffs[0] = np.array([0]) # zero mass condition
 		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 	

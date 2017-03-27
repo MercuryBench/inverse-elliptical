@@ -110,7 +110,7 @@ if __name__ == "__main__":
 	plt.plot(x, ff, 'r')
 	plotApprox(x, w)"""
 	
-	J = 9
+	J = 11
 	x = np.linspace(0, 1, 2**(13), endpoint=False)
 	w = [np.random.laplace(0, 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(J)]
 	j_besovnorm = np.zeros((J,))
