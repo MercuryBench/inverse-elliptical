@@ -237,8 +237,8 @@ if __name__ == "__main__":
 		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
 	else:
 		x = np.linspace(0, 1, 512)
-		gamma = 0.02
-		delta = 0.005
+		gamma = 0.01
+		delta = 0.01
 	
 		# boundary values for forward problem
 		# -(k * p')' = g
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 		
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
-		x0_ind = range(10, 490, 10) # observation indices
+		x0_ind = range(5, 495, 5) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(2)
 		plt.plot(x, p0.handle(x), 'k')
@@ -307,7 +307,7 @@ if __name__ == "__main__":
 		uStart = moi.mapOnInterval("wavelet", ww)
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 450)
+		uHist = ip.randomwalk(uStart, obs, delta, 20000)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, pi
 import haarWavelet as hW
 from scipy.interpolate import InterpolatedUnivariateSpline
+import scipy
 
 """ This is a class modelling maps on the interval [0,1]. There are four ways of defining a function: 
 	 	-> By explicit discretization values on a grid over [0,1], 
@@ -184,7 +185,6 @@ class mapOnInterval():
 		return self.__div__(m)
 			
 
-##### So far: integrate and differentiate yield only np-arrays instead of moi functions! Maybe fix this in the future
 
 def integrate(x, f, primitive=True): 
 	# integrates fncvals over x, returns primitive if primitive==True and integral over x if primitive==False
@@ -196,12 +196,15 @@ def integrate(x, f, primitive=True):
 	delx = x[1]-x[0]
 	if not primitive:
 		return np.trapz(f.values, dx=delx)
-	M = fncvals
+	"""
 	res = np.zeros_like(fncvals)
+	
 	res[0] = fncvals[0]*delx # should not be used for plotting etc. but is needed for compatibility with differentiate
 	for i, val in enumerate(x[1:]): # this is slow!
 		y = np.trapz(fncvals[0:i+2], dx=delx)
 		res[i+1] = y
+	"""
+	res = np.concatenate((np.array([0]), scipy.integrate.cumtrapz(fncvals, x, dx = delx)))
 	return mapOnInterval("expl", res)
 	
 def differentiate(x, f): # finite differences
