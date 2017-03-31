@@ -291,6 +291,9 @@ if __name__ == "__main__":
 		plt.plot(x, p_res.values, 'm')
 		plt.figure(3)
 		plt.plot(x, u_res.values, 'm', linewidth=4)
+		
+		
+		postApprox = GaussianFourierExpl(u_res.fouriermodes, ip.D2I_mat(x, u_res, obs))
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.001

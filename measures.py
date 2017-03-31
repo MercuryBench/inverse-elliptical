@@ -54,6 +54,42 @@ class GaussianFourier(measure):
 	@property
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
+
+class GaussianFourierExpl(measure):
+	# A Gaussian measure with covariance operator C and mean m
+	# N(m, C)
+	def __init__(self, mean, C):
+		self._mean = mean
+		self.N = len(mean)
+		w, v = np.linalg.eig(C)
+		self.eigenvals = w
+		self.eigenvecs = v	
+		self.eigenvals[0] = 0	
+	
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
+		modes = self.mean + np.random.normal(0, 1, (len(self.mean),))*self.eigenvals
+		#return modes
+		return moi.mapOnInterval("fourier", modes)
+	
+	def covInnerProd(self, u1, u2):
+		multiplicator = 1/self.eigenvals
+		multiplicator[0] = 1
+		return np.dot(u1.fouriermodes*multiplicator, u2.fouriermodes)
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+		
+	@property
+	def mean(self):
+		return self._mean
+	
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		return self
 	
 class LaplaceWavelet(measure):
 	def __init__(self, kappa, maxJ):
