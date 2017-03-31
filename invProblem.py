@@ -127,8 +127,7 @@ class inverseProblem():
 				hess_mat[l2, l1] = hess_mat[l1, l2]
 		return hess_mat
 	
-	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save modes, not whole function
-	
+	def randomwalk(self, uStart, obs, delta, N): 	
 		u = uStart
 		r = np.random.uniform(0, 1, N)
 		if uStart.inittype == "fourier":
@@ -293,7 +292,7 @@ if __name__ == "__main__":
 		plt.plot(x, u_res.values, 'm', linewidth=4)
 		
 		
-		postApprox = GaussianFourierExpl(u_res.fouriermodes, ip.D2I_mat(x, u_res, obs))
+		postApprox = GaussianFourierExpl(u_res.fouriermodes, np.linalg.inv(ip.D2I_mat(x, u_res, obs)))
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.001
