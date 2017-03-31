@@ -70,23 +70,32 @@ class inverseProblem():
 		obs = p.values[self.obsind]
 		return obs
 	def DGfnc(self, x, u, h):
-		Dp = DFfnc(x, u, h)
+		Dp = self.DFfnc(x, u, h)
 		return Dp.handle(x)[self.obsind]
 	def D2Gfnc(self, x, u, h1, h2):
-		D2p = D2Ffnc(x, u, h1, h2)
+		D2p = self.D2Ffnc(x, u, h1, h2)
 		return D2p.handle(x)[self.obsind]
 	
 	def Phi(self, x, u, obs):
 		discrepancy = obs-self.Gfnc(x, u)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
-	
+	def DPhi(self, x, u, obs, h):
+		discrepancy = obs-self.Gfnc(x, u)
+		DG_of_u_h = self.DGfnc(x, u, h)
+		return -1.0/(self.gamma**2)*np.dot(discrepancy, DG_of_u_h)
+	def D2Phi(self, x, u, obs, h1, h2):		
+		discrepancy = obs-self.Gfnc(x, u)
+		DG_of_u_h1 = self.DGfnc(x, u, h1)
+		DG_of_u_h2 = self.DGfnc(x, u, h2)
+		D2G_of_u_h1h2 = self.D2Gfnc(x, u, h1, h2)
+		return 1.0/self.gamma**2 * np.dot(DG_of_u_h1, DG_of_u_h2) - 1.0/self.gamma**2*np.dot(discrepancy, D2G_of_u_h1h2)
+		
 	def I(self, x, u, obs):
 		return self.Phi(x, u, obs) + prior.normpart(u)
 	
 	def DI(self, x, u, obs, h):
-		G_of_u = self.Gfnc(x, u)
-		DG_of_u_h = self.DGfnc(x, u, h)
-		return -1.0/(2*self.gamma**2)*np.dot((obs-G_of_u), DG_of_u_h) + self.prior.covInnerProd(u, h)
+		DPhi_u_h = self.DPhi(x, u, obs, h)
+		return DPhi_u_h + self.prior.covInnerProd(u, h)
 	
 	def DI_vec(self, x, u, obs):
 		N = len(self.prior.mean)
@@ -98,27 +107,24 @@ class inverseProblem():
 			grad_vec[n] = self.DI(x, u, obs, h)
 		return grad_vec
 	
-	def D2I(self, x, u, obs, h1, h2)
-		G_of_u = self.Gfnc(x, u)
-		DG_of_u_h1 = self.DGfnc(x, u, h1)
-		DG_of_u_h2 = self.DGfnc(x, u, h2)
-		D2G_of_u_h1h2 = self.D2Gfnc(x, u, h1, h2)
-		return 1/self.gamma**2 * np.dot(DG_of_u_h1, DG_of_u_h2) - 1/self.gamma**2*np.dot((obs-G_of_u), D2G_of_u_h1h2) + self.prior.covInnerProd(h1, h2)
+	def D2I(self, x, u, obs, h1, h2):
+		D2Phi_u_h1_h2 = self.D2Phi(x, u, obs, h1, h2)
+		return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h2)
 	
 	def D2I_mat(self, x, u, obs):
 		N = len(self.prior.mean)
 		hess_mat = np.zeros((N, N))
-	for l1 in range(N):
-		for l2 in range(l1, N):
-			h_modes1 = np.zeros((N,))
-			h_modes1[l1] = 1.0
-			h_modes2 = np.zeros((N,))
-			h_modes2[l2] = 1.0
-			h1 = moi.mapOnInterval("fourier", h_modes1)
-			h2 = moi.mapOnInterval("fourier", h_modes2)
-			hess_mat[l1, l2] = self.D2I(x, u, obs, h1, h2)
-			hess_mat[l2, l1] = hess_mat[l1, l2]
-	return hess_mat
+		for l1 in range(N):
+			for l2 in range(l1, N):
+				h_modes1 = np.zeros((N,))
+				h_modes1[l1] = 1.0
+				h_modes2 = np.zeros((N,))
+				h_modes2[l2] = 1.0
+				h1 = moi.mapOnInterval("fourier", h_modes1)
+				h2 = moi.mapOnInterval("fourier", h_modes2)
+				hess_mat[l1, l2] = self.D2I(x, u, obs, h1, h2)
+				hess_mat[l2, l1] = hess_mat[l1, l2]
+		return hess_mat
 	
 	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save modes, not whole function
 	
@@ -183,7 +189,7 @@ if __name__ == "__main__":
 	
 		# prior measure:
 		alpha = 0.7
-		beta = 2.0
+		beta = 1.5
 		mean = np.zeros((31,))
 		prior = GaussianFourier(mean, alpha, beta)
 	
@@ -191,7 +197,7 @@ if __name__ == "__main__":
 		u0 = prior.sample()
 		
 		# case 2: given ground truth
-		J = 9
+		"""J = 9
 		num = 2**J
 		x = np.linspace(0, 1, 2**(J), endpoint=False)
 		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
@@ -208,7 +214,7 @@ if __name__ == "__main__":
 		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
 
 		f = np.concatenate((vec1, vec2, vec3, vec4))
-		u0 = moi.mapOnInterval("expl", f)
+		u0 = moi.mapOnInterval("expl", f)"""
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
 		plt.figure(1)
@@ -245,7 +251,7 @@ if __name__ == "__main__":
 		plt.plot(x, pHist_mean.handle(x), 'g')
 	
 		# test gradient calculation
-		h = moi.mapOnInterval("handle", lambda x: u0.handle(x) - uHist_mean.handle(x))
+		h = moi.mapOnInterval("fourier", u0.fouriermodes - uHist_mean.fouriermodes)
 		DFuh = ip.DFfnc(x, uHist_mean, h)
 		D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
 		plt.figure(4)
@@ -256,6 +262,14 @@ if __name__ == "__main__":
 		plt.plot(x, T1.handle(x), 'b')
 		plt.plot(x, T2.handle(x), 'm')
 		plt.plot(x[x0_ind], obs, 'r.')
+		
+		uplush = uHist_mean + h
+		
+		print("I(uHist_mean)=" + str(ip.I(x, uHist_mean, obs)))
+		print("I(uHist_mean + h)=" + str(ip.I(x, uplush, obs)))
+		print("I(uHist_mean) + DI(uHist_mean)(h)=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h)))
+		print("I(uHist_mean) + DI(uHist_mean)(h) + 1/2*D2I(uHist_mean)[h,h]=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h) + 0.5*ip.D2I(x, uHist_mean, obs, h, h)))
+		
 		#h = u - uMAP
 		#h_modes = u_modes - uMAP_modes 
 		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)

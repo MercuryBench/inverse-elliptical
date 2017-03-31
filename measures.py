@@ -26,8 +26,8 @@ class GaussianFourier(measure):
 		self._mean = mean
 		self.alpha = alpha
 		self.beta = beta
-		N = len(mean)
-		freqs = beta*np.array([(k**(-2*alpha)) for k in np.linspace(1, N//2, N//2)])
+		self.N = len(mean)
+		freqs = beta*np.array([(k**(-2*alpha)) for k in np.linspace(1, self.N//2, self.N//2)])
 		self.eigenvals = np.concatenate((np.array([0]), freqs, freqs)) # first entry for mass-0 condition
 	
 	def sample(self, M=1):
@@ -39,8 +39,9 @@ class GaussianFourier(measure):
 		return moi.mapOnInterval("fourier", modes)
 	
 	def covInnerProd(self, u1, u2):
-		N = len(modes1)
-		return np.dot(u1.fouriermodes*self.eigenvals, u2.fouriermodes)
+		multiplicator = 1/self.eigenvals
+		multiplicator[0] = 1
+		return np.dot(u1.fouriermodes*multiplicator, u2.fouriermodes)
 	def normpart(self, u):
 		return 1.0/2*self.covInnerProd(u, u)
 	def norm(self, u):
