@@ -8,30 +8,6 @@ import mapOnInterval as moi
 import pickle
 import time, sys
 
-# update_progress() : Displays or updates a console progress bar
-## Accepts a float between 0 and 1. Any int will be converted to a float.
-## A value under 0 represents a 'halt'.
-## A value at 1 or bigger represents 100%
-def update_progress(progress):
-    barLength = 10 # Modify this to change the length of the progress bar
-    status = ""
-    if isinstance(progress, int):
-        progress = float(progress)
-    if not isinstance(progress, float):
-        progress = 0
-        status = "error: progress var must be float\r\n"
-    if progress < 0:
-        progress = 0
-        status = "Halt...\r\n"
-    if progress >= 1:
-        progress = 1
-        status = "Done...\r\n"
-    block = int(round(barLength*progress))
-    text = "\rPercent: [{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), progress*100, status)
-    sys.stdout.write(text)
-    sys.stdout.flush()
-
-
 class inverseProblem():
 	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
 		# need: type(fwd) == fwdProblem, type(prior) == measure
@@ -103,8 +79,46 @@ class inverseProblem():
 	def Phi(self, x, u, obs):
 		discrepancy = obs-self.Gfnc(x, u)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
+	
 	def I(self, x, u, obs):
 		return self.Phi(x, u, obs) + prior.normpart(u)
+	
+	def DI(self, x, u, obs, h):
+		G_of_u = self.Gfnc(x, u)
+		DG_of_u_h = self.DGfnc(x, u, h)
+		return -1.0/(2*self.gamma**2)*np.dot((obs-G_of_u), DG_of_u_h) + self.prior.covInnerProd(u, h)
+	
+	def DI_vec(self, x, u, obs):
+		N = len(self.prior.mean)
+		grad_vec = np.zeros((N, ))
+		for n in range(N):
+			h_coeff = np.zeros((N, ))
+			h_coeff[n] = 1
+			h = moi.mapOnInterval("fourier", h_coeff)
+			grad_vec[n] = self.DI(x, u, obs, h)
+		return grad_vec
+	
+	def D2I(self, x, u, obs, h1, h2)
+		G_of_u = self.Gfnc(x, u)
+		DG_of_u_h1 = self.DGfnc(x, u, h1)
+		DG_of_u_h2 = self.DGfnc(x, u, h2)
+		D2G_of_u_h1h2 = self.D2Gfnc(x, u, h1, h2)
+		return 1/self.gamma**2 * np.dot(DG_of_u_h1, DG_of_u_h2) - 1/self.gamma**2*np.dot((obs-G_of_u), D2G_of_u_h1h2) + self.prior.covInnerProd(h1, h2)
+	
+	def D2I_mat(self, x, u, obs):
+		N = len(self.prior.mean)
+		hess_mat = np.zeros((N, N))
+	for l1 in range(N):
+		for l2 in range(l1, N):
+			h_modes1 = np.zeros((N,))
+			h_modes1[l1] = 1.0
+			h_modes2 = np.zeros((N,))
+			h_modes2[l2] = 1.0
+			h1 = moi.mapOnInterval("fourier", h_modes1)
+			h2 = moi.mapOnInterval("fourier", h_modes2)
+			hess_mat[l1, l2] = self.D2I(x, u, obs, h1, h2)
+			hess_mat[l2, l1] = hess_mat[l1, l2]
+	return hess_mat
 	
 	def randomwalk(self, uStart, obs, delta, N): # for efficiency, only save modes, not whole function
 	
