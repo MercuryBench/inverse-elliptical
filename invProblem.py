@@ -7,6 +7,7 @@ from measures import *
 import mapOnInterval as moi
 import pickle
 import time, sys
+import scipy.optimize
 
 class inverseProblem():
 	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
@@ -169,6 +170,15 @@ class inverseProblem():
 					u_coeffs = v_coeffs
 				uHist.append(u_coeffs)
 			return uHist
+	
+	def find_uMAP(self, x, uStart, obs, maxIt = 5):
+		# ONLY IMPLEMENTED FOR FOURIER!!!
+		I_fnc = lambda u_coeffs: self.I(x, moi.mapOnInterval("fourier", u_coeffs), obs)
+		DI_vecfnc = lambda u_coeffs: self.DI_vec(x, moi.mapOnInterval("fourier", u_coeffs), obs)
+		D2I_matfnc = lambda u_coeffs: self.D2I_mat(x, moi.mapOnInterval("fourier", u_coeffs), obs)
+		
+		res = scipy.optimize.minimize(I_fnc, uStart, method='Newton-CG', jac=DI_vecfnc, hess=D2I_matfnc, options={'disp': True, 'maxiter': maxIt})
+		return moi.mapOnInterval("fourier", res.x)
 
 if __name__ == "__main__":
 	if len(sys.argv) > 1 and sys.argv[1] == "g":
@@ -274,6 +284,13 @@ if __name__ == "__main__":
 		#h_modes = u_modes - uMAP_modes 
 		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
 		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
+		u_res = ip.find_uMAP(x, uHist_mean.fouriermodes, obs, maxIt = 200)
+		print("I(u_res)=" + str(ip.I(x, u_res, obs)))
+		p_res = ip.Ffnc(x, u_res)
+		plt.figure(2)
+		plt.plot(x, p_res.values, 'm')
+		plt.figure(3)
+		plt.plot(x, u_res.values, 'm', linewidth=4)
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.001
