@@ -169,7 +169,7 @@ if __name__ == "__main__":
 	
 		# prior measure:
 		alpha = 0.7
-		beta = 0.5
+		beta = 2.0
 		mean = np.zeros((31,))
 		prior = GaussianFourier(mean, alpha, beta)
 	
@@ -213,7 +213,7 @@ if __name__ == "__main__":
 	
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
-		uHist = ip.randomwalk(prior.sample(), obs, delta, 150)
+		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000)
 		plt.figure(3)
 	
 		for uh in uHist:
@@ -263,8 +263,8 @@ if __name__ == "__main__":
 		fwd = linEllipt(g, pplus, pminus)
 		
 		# prior measure:
-		maxJ = 9
-		kappa = 100.0
+		maxJ = 6
+		kappa = 2.0
 		prior = LaplaceWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
@@ -324,14 +324,14 @@ if __name__ == "__main__":
 		pHistfnc = []
 		IHist = []
 		PhiHist = []
-		"""for uh in uHist:
+		for uh in uHist:
 			uhfnc = moi.mapOnInterval("wavelet", uh, interpolationdegree=1)
 			pfnc = ip.Ffnc(x, uhfnc)
 			#plt.plot(x, uhfnc.handle(x))
 			uHistfnc.append(uhfnc)
 			pHistfnc.append(pfnc)
 			IHist.append(ip.I(x, uhfnc, obs))
-			PhiHist.append(ip.Phi(x, uhfnc, obs))"""
+			PhiHist.append(ip.Phi(x, uhfnc, obs))
 		
 		uHist_mean_c = []
 		for j in range(len(uHist[0])):
@@ -389,7 +389,7 @@ if __name__ == "__main__":
 		
 		# prior measure:
 		maxJ = 9
-		kappa = 100.0
+		kappa = 1.0
 		prior = LaplaceWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
