@@ -91,6 +91,12 @@ class inverseProblem():
 		D2G_of_u_h1h2 = self.D2Gfnc(x, u, h1, h2)
 		return 1.0/self.gamma**2 * np.dot(DG_of_u_h1, DG_of_u_h2) - 1.0/self.gamma**2*np.dot(discrepancy, D2G_of_u_h1h2)
 		
+	def TPhi(self, x, u, obs, uMAP):
+		Phi_uMAP = self.Phi(x, uMAP, obs)
+		Phiprime_uMAP = lambda h: self.DPhi(x, uMAP, obs, h)
+		Phiprimeprime_uMAP = lambda h1, h2: self.D2Phi(x, uMAP, obs, h1, h2)
+		return Phi_uMAP + Phiprime_uMAP(u-u_res) + 0.5* Phiprimeprime_uMAP(u-u_res, u-u_res)
+	
 	def I(self, x, u, obs):
 		return self.Phi(x, u, obs) + prior.normpart(u)
 	
@@ -178,6 +184,21 @@ class inverseProblem():
 		
 		res = scipy.optimize.minimize(I_fnc, uStart, method='Newton-CG', jac=DI_vecfnc, hess=D2I_matfnc, options={'disp': True, 'maxiter': maxIt})
 		return moi.mapOnInterval("fourier", res.x)
+	
+	def calcHell(self, mu0, dmu_unnorm, dnu_unnorm, maxIt = 200):
+		samples = [mu0.sample() for j in range(maxIt)]
+		dmu_unnorm_values = [dmu_unnorm(s) for s in samples]
+		dnu_unnorm_values = [dnu_unnorm(s) for s in samples]
+		dmu_norm = np.mean(np.array(dmu_unnorm_values))
+		dnu_norm = np.mean(np.array(dnu_unnorm_values))
+
+		dmu_values = np.array([val/dmu_norm for val in dmu_unnorm_values])
+		dnu_values = np.array([val/dnu_norm for val in dnu_unnorm_values])
+
+		temp = (np.sqrt(dmu_values) - np.sqrt(dnu_values))**2
+		dH = 1/sqrt(2)*sqrt(np.mean(temp))
+		return dH
+		
 
 if __name__ == "__main__":
 	if len(sys.argv) > 1 and sys.argv[1] == "g":
@@ -293,6 +314,14 @@ if __name__ == "__main__":
 		
 		
 		postApprox = GaussianFourierExpl(u_res.fouriermodes, np.linalg.inv(ip.D2I_mat(x, u_res, obs)))
+		data = [x, gamma, delta, pplus, pminus, u0.values, k0.values, p0.values, x0_ind, obs, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
+		
+		Phi_uMAP = ip.Phi(x, u_res, obs)
+		Phiprime_uMAP = lambda h: ip.DPhi(x, u_res, obs, h)
+		Phiprimeprime_uMAP = lambda h1, h2: ip.D2Phi(x, u_res, obs, h1, h2)
+		dnu_unnorm = lambda u: exp(-(Phi_uMAP + Phiprime_uMAP(u-u_res) + 0.5* Phiprimeprime_uMAP(u-u_res, u-u_res)))
+		
+		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.001
