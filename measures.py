@@ -106,11 +106,22 @@ class GaussianWavelet(measure):
 		coeffs[0] = np.array([0]) # zero mass condition
 		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 		
-	def normpart(self, w):
+	"""def normpart(self, w):
 		j_besovnorm = np.zeros((self.maxJ,))
 		for j in range(self.maxJ):
 			j_besovnorm[j] = np.sum((w.waveletcoeffs[j])**2*4**(j))
-		return math.sqrt(np.sum(j_besovnorm))
+		return math.sqrt(np.sum(j_besovnorm))"""
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+	
+	def covInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		for j in range(self.maxJ):
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(j))
+		return np.sum(j_besovprod)
+		
 	@property
 	def mean(self):
 		pass

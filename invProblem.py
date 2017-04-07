@@ -114,6 +114,17 @@ class inverseProblem():
 			grad_vec[n] = self.DI(x, u, obs, h)
 		return grad_vec
 	
+	def DI_vec_Wavelet(self, x, u, obs):
+		J = self.prior.maxJ
+		grad_vec = np.zeros((2**J,))
+		for n in range(2**J):
+			h_coeff = np.zeros((2**J,))
+			h_coeff[n] = 1
+			h_coeff_packed = self.pack(h_coeff)
+			h = moi.mapOnInterval("wavelet", h_coeff_packed)
+			grad_vec[n] = self.DI(x, u, obs, h)
+		return grad_vec
+	
 	def D2I(self, x, u, obs, h1, h2):
 		D2Phi_u_h1_h2 = self.D2Phi(x, u, obs, h1, h2)
 		return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h2)
@@ -133,9 +144,25 @@ class inverseProblem():
 				hess_mat[l2, l1] = hess_mat[l1, l2]
 		return hess_mat
 	
-	def randomwalk(self, uStart, obs, delta, N): 	
+	def D2I_mat_Wavelet(self, x, u, obs):
+		J = self.prior.maxJ
+		hess_mat = np.zeros((2**J, 2**J))
+		for l1 in range(2**J):
+			for l2 in range(l1, 2**J):
+				h_modes1 = np.zeros((2**J,))
+				h_modes1[l1] = 1.0
+				h_modes2 = np.zeros((2**J,))
+				h_modes2[l2] = 1.0
+				h1 = moi.mapOnInterval("wavelet", self.pack(h_modes1))
+				h2 = moi.mapOnInterval("fourier", self.pack(h_modes2))
+				hess_mat[l1, l2] = self.D2I(x, u, obs, h1, h2)
+				hess_mat[l2, l1] = hess_mat[l1, l2]
+		return hess_mat
+	
+	def randomwalk(self, uStart, obs, delta, N, printDiagnostic=False): 	
 		u = uStart
 		r = np.random.uniform(0, 1, N)
+		acceptionNum = 0
 		if uStart.inittype == "fourier":
 			u_modes = uStart.fouriermodes
 			uHist = [u_modes]
@@ -152,7 +179,10 @@ class inverseProblem():
 				if r[n] < alpha:
 					u = v
 					u_modes = v_modes
+					acceptionNum = acceptionNum + 1
 				uHist.append(u_modes)
+			if printDiagnostic:
+				print("acception probability: " + str(acceptionNum/N))
 			return uHist
 		elif uStart.inittype == "wavelet":
 			u_coeffs = uStart.waveletcoeffs
@@ -173,7 +203,10 @@ class inverseProblem():
 				if r[m] < alpha:
 					u = v
 					u_coeffs = v_coeffs
+					acceptionNum = acceptionNum + 1
 				uHist.append(u_coeffs)
+			if printDiagnostic:
+				print("acception probability: " + str(acceptionNum/N))
 			return uHist
 	
 	def find_uMAP(self, x, uStart, obs, maxIt = 5):
@@ -204,7 +237,15 @@ class inverseProblem():
 		I_fnc = lambda u_coeffs_unpacked: self.I(x, moi.mapOnInterval("wavelet", self.pack(u_coeffs_unpacked)), obs)
 		res = scipy.optimize.minimize(I_fnc, uStart_unpacked, method="Nelder-Mead", options={'disp': True, 'maxiter': maxIt})
 		return moi.mapOnInterval("wavelet", self.pack(res.x))
-	
+		
+	def find_uMAP_wavelet_Gaussian(self, x, uStart, obs, maxIt = 5):
+		uStart_unpacked = self.unpack(uStart)
+		I_fnc = lambda u_coeffs_unpacked: self.I(x, moi.mapOnInterval("wavelet", self.pack(u_coeffs_unpacked)), obs)
+		DI_vecfnc = lambda u_coeffs_unpacked: self.DI_vec_Wavelet(x, moi.mapOnInterval("wavelet", self.pack(u_coeffs_unpacked)), obs)
+		D2I_matfnc = lambda u_coeffs_unpacked: self.D2I_mat_Wavelet(x, moi.mapOnInterval("wavelet", self.pack(u_coeffs_unpacked)), obs)
+		res = scipy.optimize.minimize(I_fnc, uStart_unpacked, method='Newton-CG', jac=DI_vecfnc, hess=D2I_matfnc, options={'disp': True, 'maxiter': maxIt})
+		return moi.mapOnInterval("wavelet", self.pack(res.x))
+		
 	def calcHell(self, mu0, dmu_unnorm, dnu_unnorm, maxIt = 200):
 		samples = [mu0.sample() for j in range(maxIt)]
 		dmu_unnorm_values = [dmu_unnorm(s) for s in samples]
@@ -303,7 +344,7 @@ if __name__ == "__main__":
 	
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 	
-		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000)
+		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000, printDiagnostic=True)
 		plt.figure(3)
 	
 		for uh in uHist:
@@ -380,8 +421,8 @@ if __name__ == "__main__":
 		
 		# prior measure:
 		maxJ = 7
-		kappa = 0.5
-		prior = LaplaceWavelet(kappa, maxJ)
+		kappa = 10
+		prior = GaussianWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
 		u0 = prior.sample()
@@ -418,7 +459,7 @@ if __name__ == "__main__":
 		uStart = moi.mapOnInterval("wavelet", ww)"""
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 100)
+		uHist = ip.randomwalk(uStart, obs, delta, 10000, printDiagnostic=True)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []
@@ -456,7 +497,7 @@ if __name__ == "__main__":
 		
 		data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
 		
-		uMAP = ip.find_uMAP_wavelet(x, uHist[-1], obs, maxIt = 100)
+		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 1)
 		
 		"""plt.figure()
 		for pf in pHistfnc:
