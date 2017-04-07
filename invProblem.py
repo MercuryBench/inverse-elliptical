@@ -185,6 +185,26 @@ class inverseProblem():
 		res = scipy.optimize.minimize(I_fnc, uStart, method='Newton-CG', jac=DI_vecfnc, hess=D2I_matfnc, options={'disp': True, 'maxiter': maxIt})
 		return moi.mapOnInterval("fourier", res.x)
 	
+	def unpack(self, wavelet_coeffs):
+		J = len(wavelet_coeffs)
+		unpacked = np.zeros((2**(J)-1,))
+		for j in range(J):
+			unpacked[2**j-1:2**(j+1)-1] = wavelet_coeffs[j]
+		return np.array(unpacked)
+
+	def pack(self, lst):
+		J = int(math.ceil(log(len(lst), 2)))
+		wavelet_coeffs = []
+		for j in range(J):
+			wavelet_coeffs.append(lst[2**j-1:2**(j+1)-1])
+		return wavelet_coeffs
+	
+	def find_uMAP_wavelet(self, x, uStart, obs, maxIt = 5):
+		uStart_unpacked = self.unpack(uStart)
+		I_fnc = lambda u_coeffs_unpacked: self.I(x, moi.mapOnInterval("wavelet", self.pack(u_coeffs_unpacked)), obs)
+		res = scipy.optimize.minimize(I_fnc, uStart_unpacked, method="Nelder-Mead", options={'disp': True, 'maxiter': maxIt})
+		return moi.mapOnInterval("wavelet", self.pack(res.x))
+	
 	def calcHell(self, mu0, dmu_unnorm, dnu_unnorm, maxIt = 200):
 		samples = [mu0.sample() for j in range(maxIt)]
 		dmu_unnorm_values = [dmu_unnorm(s) for s in samples]
@@ -198,7 +218,27 @@ class inverseProblem():
 		temp = (np.sqrt(dmu_values) - np.sqrt(dnu_values))**2
 		dH = 1/sqrt(2)*sqrt(np.mean(temp))
 		return dH
-		
+
+
+def testfnc(J=9):
+	x = np.linspace(0, 1, 2**(J), endpoint=False)
+	gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
+	g1 = lambda x: gg1(2**J*x)
+	gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
+	g2 = lambda x: gg2(2**J*x)
+	gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
+	g3 = lambda x: gg3(2**J*x)
+	gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
+	g4 = lambda x: gg4(2**J*x)
+	vec1 = g2(x[0:int(2**(J-5/2))])
+	vec2 = g1(x[int(2**(J-5/2)):int(2**(J-1.5))])
+	vec3 = g3(x[int(2**(J-1.5)):int(2**(J)-2**(J-1.2))])
+	vec4 = g4(x[int(2**(J)-2**(J-1.2)):int(2**(J))])
+
+	f = np.concatenate((vec1, vec2, vec3, vec4))
+	f = f - np.sum(f)*2**(-9) # normalize
+	u0 = moi.mapOnInterval("expl", f, interpolationdegree = 1)
+	return u0
 
 if __name__ == "__main__":
 	if len(sys.argv) > 1 and sys.argv[1] == "g":
@@ -339,8 +379,8 @@ if __name__ == "__main__":
 		fwd = linEllipt(g, pplus, pminus)
 		
 		# prior measure:
-		maxJ = 6
-		kappa = 2.0
+		maxJ = 7
+		kappa = 0.5
 		prior = LaplaceWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
@@ -349,23 +389,7 @@ if __name__ == "__main__":
 		# case 2: given ground truth
 		J = 9
 		num = 2**J
-		x = np.linspace(0, 1, 2**(J), endpoint=False)
-		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
-		g1 = lambda x: gg1(2**J*x)
-		gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
-		g2 = lambda x: gg2(2**J*x)
-		gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
-		g3 = lambda x: gg3(2**J*x)
-		gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
-		g4 = lambda x: gg4(2**J*x)
-		vec1 = g2(x[0:2**(J-5/2)])
-		vec2 = g1(x[2**(J-5/2):2**(J-1.5)])
-		vec3 = g3(x[2**(J-1.5):2**(J)-2**(J-1.2)])
-		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
-
-		f = np.concatenate((vec1, vec2, vec3, vec4))
-		f = f - np.sum(f)*2**(-9) # normalize
-		u0 = moi.mapOnInterval("expl", f)
+		u0 = testfnc(J)
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		plt.figure(1)
@@ -386,15 +410,15 @@ if __name__ == "__main__":
 		# possibility 1: sample start
 		uStart = prior.sample()
 		
-		# possibility 2: specific start
+		"""# possibility 2: specific start
 		ww = uStart.waveletcoeffs
 		for n, w in enumerate(ww):
 			ww[n] = np.zeros_like(w)
 		ww[2] = np.array([0.2, -0.15, -0.05, 0.1])
-		uStart = moi.mapOnInterval("wavelet", ww)
+		uStart = moi.mapOnInterval("wavelet", ww)"""
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 10000)
+		uHist = ip.randomwalk(uStart, obs, delta, 100)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []
@@ -416,7 +440,6 @@ if __name__ == "__main__":
 				avg = avg + uHist[k][j]
 			avg = avg/len(uHist)
 			uHist_mean_c.append(avg)
-			update_progress(j/len(uHist[0]))
 		
 		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
 		pHist_mean = ip.Ffnc(x, uHist_mean)
@@ -431,10 +454,9 @@ if __name__ == "__main__":
 		plt.plot(x, pHist_mean.handle(x), 'g')
 		plt.plot(x, pHistfnc[-1].handle(x), 'b')
 		
-		data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, f, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
-		str = "save_" + datetime.datetime.now().isoformat('_') + ".p"
-
-		pickle.dump(data, open(str, "wb"))
+		data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
+		
+		uMAP = ip.find_uMAP_wavelet(x, uHist[-1], obs, maxIt = 100)
 		
 		"""plt.figure()
 		for pf in pHistfnc:
@@ -466,31 +488,15 @@ if __name__ == "__main__":
 		# prior measure:
 		maxJ = 9
 		kappa = 1.0
-		prior = LaplaceWavelet(kappa, maxJ)
+		prior = GaussianWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
-		u0 = prior.sample()
+		u0_test = prior.sample()
 		
 		# case 2: given ground truth
 		J = 9
 		num = 2**J
-		x = np.linspace(0, 1, 2**(J), endpoint=False)
-		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
-		g1 = lambda x: gg1(2**J*x)
-		gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
-		g2 = lambda x: gg2(2**J*x)
-		gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
-		g3 = lambda x: gg3(2**J*x)
-		gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
-		g4 = lambda x: gg4(2**J*x)
-		vec1 = g2(x[0:2**(J-5/2)])
-		vec2 = g1(x[2**(J-5/2):2**(J-1.5)])
-		vec3 = g3(x[2**(J-1.5):2**(J)-2**(J-1.2)])
-		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
-
-		f = np.concatenate((vec1, vec2, vec3, vec4))
-		f = f - np.sum(f)*2**(-9) # normalize
-		u0 = moi.mapOnInterval("expl", f)
+		u0 = testfnc(J)
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		
@@ -503,10 +509,6 @@ if __name__ == "__main__":
 		plt.plot(x[x0_ind], obs, 'r.')
 		
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
-		
-		# possibility 1: sample start
-		uStart = prior.sample()
-		st = time.time()
-		uHist = ip.randomwalk(uStart, obs, delta, 1)
-		et = time.time()
-		print(str(et-st))
+		plt.ion()
+		plt.figure()
+		plt.plot(x, u0_test.values)

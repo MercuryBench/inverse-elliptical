@@ -90,7 +90,34 @@ class GaussianFourierExpl(measure):
 	@property
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
-	
+
+class GaussianWavelet(measure):
+	def __init__(self, kappa, maxJ):
+		self.kappa = kappa
+		self.maxJ = maxJ # cutoff frequency
+		
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
+		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-0.501), (2**j,)) for j in range(self.maxJ)]
+		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
+		
+		coeffs[0] = np.array([0]) # zero mass condition
+		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
+		
+	def normpart(self, w):
+		j_besovnorm = np.zeros((self.maxJ,))
+		for j in range(self.maxJ):
+			j_besovnorm[j] = np.sum((w.waveletcoeffs[j])**2*4**(j))
+		return math.sqrt(np.sum(j_besovnorm))
+	@property
+	def mean(self):
+		pass
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")
+		
 class LaplaceWavelet(measure):
 	def __init__(self, kappa, maxJ):
 		self.kappa = kappa
@@ -100,8 +127,9 @@ class LaplaceWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
+		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
+		coeffs = [np.random.laplace(0, self.kappa, (2**j,)) for j in range(self.maxJ)]
 		coeffs[0] = np.array([0]) # zero mass condition
 		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 	
