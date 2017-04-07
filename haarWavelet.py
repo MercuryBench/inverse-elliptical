@@ -48,17 +48,27 @@ def waveletsynthesis(w,xs=None):
 			for k, c in enumerate(w[j]):
 				#f = f - c*psi_scale(xs, -j+1, k)
 				psivec = np.zeros_like(xs)
+				#psivec[2**(J-j)*k:2**(J-j)*k + 2**(J-j-1)] = 1
+				#psivec[2**(J-j)*k + 2**(J-j-1):2**(J-j)*(k+1)] = -1
+				psivec[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j)] = 1
+				psivec[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1)] = -1
+				f = f - c*psivec
+		"""f = np.zeros_like(xs)
+		for j in range(len(w)):
+			for k, c in enumerate(w[j]):
+				#f = f - c*psi_scale(xs, -j+1, k)
+				psivec = np.zeros_like(xs)
 				psivec[2**(J-j)*k:2**(J-j)*k + 2**(J-j-1)] = 1
 				psivec[2**(J-j)*k + 2**(J-j-1):2**(J-j)*(k+1)] = -1
 				f = f - c*psivec
-		#return f/2**(J/2)
+		#return f/2**(J/2)"""
 	return f
 	
 # utility for plotApprox
 def getApprox(x, w):
 	J = len(w)-1
-	recon = [w[0]+np.zeros_like(x)]
-	for j in range(1, J+1):
+	recon = [np.zeros_like(x)]
+	for j in range(J+1):
 		term = 0
 		for k, c in enumerate(w[j]):
 			term = term + c*psi_scale(x, -j+1, k)
