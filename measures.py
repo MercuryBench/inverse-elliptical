@@ -100,10 +100,10 @@ class GaussianWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-0.501), (2**j,)) for j in range(self.maxJ)]
+		coeffs = [np.random.normal(0, self.kappa * 2**(-j*3/2)*(1+j)**(-0.501), (2**j,)) for j in range(self.maxJ)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
 		
-		coeffs[0] = np.array([0]) # zero mass condition
+		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
 		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 		
 	"""def normpart(self, w):
@@ -118,8 +118,10 @@ class GaussianWavelet(measure):
 	
 	def covInnerProd(self, w1, w2):
 		j_besovprod = np.zeros((self.maxJ,))
-		for j in range(self.maxJ):
-			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(j))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber))
 		return np.sum(j_besovprod)
 		
 	@property
@@ -138,16 +140,18 @@ class LaplaceWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
+		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
-		coeffs = [np.random.laplace(0, self.kappa, (2**j,)) for j in range(self.maxJ)]
-		coeffs[0] = np.array([0]) # zero mass condition
+		#coeffs = [np.random.laplace(0, self.kappa, (2**j,)) for j in range(self.maxJ)]
+		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
 		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
 	
 	def normpart(self, w):
 		j_besovnorm = np.zeros((self.maxJ,))
-		for j in range(self.maxJ):
-			j_besovnorm[j] = np.sum(np.abs(w.waveletcoeffs[j])*2**(j/2))
+		j_besovnorm[0] = np.abs(w.waveletcoeffs[0])
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovnorm[j] = np.sum(np.abs(w.waveletcoeffs[j])*2**(jnumber/2))
 		return np.sum(j_besovnorm)
 		
 		

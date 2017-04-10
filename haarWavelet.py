@@ -50,9 +50,9 @@ def waveletsynthesis(w,xs=None):
 				psivec = np.zeros_like(xs)
 				#psivec[2**(J-j)*k:2**(J-j)*k + 2**(J-j-1)] = 1
 				#psivec[2**(J-j)*k + 2**(J-j-1):2**(J-j)*(k+1)] = -1
-				psivec[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j)] = 1
-				psivec[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1)] = -1
-				f = f - c*psivec
+				psivec[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j)] = -2**((j-1)/2)
+				psivec[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1)] = 2**((j-1)/2)
+				f = f + c*psivec
 		"""f = np.zeros_like(xs)
 		for j in range(len(w)):
 			for k, c in enumerate(w[j]):
@@ -63,9 +63,22 @@ def waveletsynthesis(w,xs=None):
 				f = f - c*psivec
 		#return f/2**(J/2)"""
 	return f
+
+def getApprox(x, w):
+	J = len(w)-1
+	f = np.zeros_like(x)+w[0]
+	recon = [f]
+	for j in range(1, len(w)):
+		for k, c in enumerate(w[j]):
+			psivec = np.zeros_like(x)
+			psivec[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j)] = -2**((j-1)/2)
+			psivec[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1)] = 2**((j-1)/2)
+			f = f + c*psivec
+		recon.append(f)
+	return recon
 	
 # utility for plotApprox
-def getApprox(x, w):
+"""def getApprox_old(x, w):
 	J = len(w)-1
 	recon = [np.zeros_like(x)]
 	for j in range(J+1):
@@ -75,7 +88,7 @@ def getApprox(x, w):
 		recon.append(recon[-1] - term)
 	#for k in range(len(recon)):
 	#	recon[k] = recon[k]/2**(J/2)
-	return recon
+	return recon"""
 
 # plots successive approximations
 def plotApprox(x, w):
@@ -120,31 +133,14 @@ if __name__ == "__main__":
 	plt.plot(x, ff, 'r')
 	plotApprox(x, w)"""
 	
-	J = 11
 	x = np.linspace(0, 1, 2**(13), endpoint=False)
-	w = [np.random.laplace(0, 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(J)]
-	j_besovnorm = np.zeros((J,))
-	j_besovnorm_mean = np.zeros((J,))
-	for j in range(J):
-		j_besovnorm[j] = np.sum(np.abs(w[j])*2**(j/2))
-		j_besovnorm_mean[j] = np.mean(np.abs(w[j])*2**(j/2))
-	besovnorm = np.cumsum(j_besovnorm)
-	st = time.time()
-	f = [waveletsynthesis(w[0:j], x) for j in range(1, J+1)]
-	et = time.time()
-	print(et-st)
-	plt.figure()
+	f = x**2*np.sin(12*x)
+	w = waveletanalysis(f)
+	ff = waveletsynthesis(w, x)
+	plt.plot(x, f)
+	plt.plot(x, ff, 'r')
 	plt.ion()
-	for j in range(9):
-		plt.subplot(J, 1, j+1)
-		plt.plot(x, f[j])
 	plt.show()
-	
-	plt.figure()
-	plt.plot(besovnorm, '.')
-	
-	plt.figure()
-	plt.plot(x, f[-1])
 
 
 

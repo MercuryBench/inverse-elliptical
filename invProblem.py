@@ -154,7 +154,7 @@ class inverseProblem():
 				h_modes2 = np.zeros((2**J,))
 				h_modes2[l2] = 1.0
 				h1 = moi.mapOnInterval("wavelet", self.pack(h_modes1))
-				h2 = moi.mapOnInterval("fourier", self.pack(h_modes2))
+				h2 = moi.mapOnInterval("wavelet", self.pack(h_modes2))
 				hess_mat[l1, l2] = self.D2I(x, u, obs, h1, h2)
 				hess_mat[l2, l1] = hess_mat[l1, l2]
 		return hess_mat
@@ -217,17 +217,21 @@ class inverseProblem():
 		
 		res = scipy.optimize.minimize(I_fnc, uStart, method='Newton-CG', jac=DI_vecfnc, hess=D2I_matfnc, options={'disp': True, 'maxiter': maxIt})
 		return moi.mapOnInterval("fourier", res.x)
-	
+		
+     
 	def unpack(self, wavelet_coeffs):
-		J = len(wavelet_coeffs)
-		unpacked = np.zeros((2**(J)-1,))
+		J = len(wavelet_coeffs)-1
+		unpacked = np.zeros((2**(J),))
+		unpacked[0] = wavelet_coeffs[0]
 		for j in range(J):
-			unpacked[2**j-1:2**(j+1)-1] = wavelet_coeffs[j]
+			unpacked[2**j:2**(j+1)] = wavelet_coeffs[j+1]
 		return np.array(unpacked)
 
-	def pack(self, lst):
+	def pack(self, lst_input):
+		val0 = lst_input[0]
+		lst = lst_input[1:]
 		J = int(math.ceil(log(len(lst), 2)))
-		wavelet_coeffs = []
+		wavelet_coeffs = [val0]
 		for j in range(J):
 			wavelet_coeffs.append(lst[2**j-1:2**(j+1)-1])
 		return wavelet_coeffs
@@ -406,7 +410,7 @@ if __name__ == "__main__":
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.001
-		delta = 0.01
+		delta = 0.05
 	
 		# boundary values for forward problem
 		# -(k * p')' = g
@@ -459,7 +463,7 @@ if __name__ == "__main__":
 		uStart = moi.mapOnInterval("wavelet", ww)"""
 		
 		
-		uHist = ip.randomwalk(uStart, obs, delta, 10000, printDiagnostic=True)
+		uHist = ip.randomwalk(uStart, obs, delta, 1000, printDiagnostic=True)
 		plt.figure(3)
 		uHistfnc = []
 		pHistfnc = []
@@ -497,7 +501,7 @@ if __name__ == "__main__":
 		
 		data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
 		
-		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 1)
+		#uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 1)
 		
 		"""plt.figure()
 		for pf in pHistfnc:
