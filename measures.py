@@ -100,7 +100,7 @@ class GaussianWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.normal(0, self.kappa * 2**(-j*3/2)*(1+j)**(-0.501), (2**j,)) for j in range(self.maxJ)]
+		coeffs = [np.random.normal(0, self.kappa * 2**(-j*3/2)*(1+j)**(-0.501), (2**j,)) for j in range(self.maxJ-1)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
 		
 		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
@@ -124,6 +124,14 @@ class GaussianWavelet(measure):
 			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber))
 		return np.sum(j_besovprod)
 		
+	def cumcovInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber))
+		return np.cumsum(j_besovprod)
+	
 	@property
 	def mean(self):
 		pass
@@ -140,7 +148,7 @@ class LaplaceWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ)]
+		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ-1)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
 		#coeffs = [np.random.laplace(0, self.kappa, (2**j,)) for j in range(self.maxJ)]
 		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
@@ -149,7 +157,7 @@ class LaplaceWavelet(measure):
 	def normpart(self, w):
 		j_besovnorm = np.zeros((self.maxJ,))
 		j_besovnorm[0] = np.abs(w.waveletcoeffs[0])
-		for j in range(1, self.maxJ):
+		for j in range(1, self.maxJ+1):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovnorm[j] = np.sum(np.abs(w.waveletcoeffs[j])*2**(jnumber/2))
 		return np.sum(j_besovnorm)
@@ -161,3 +169,9 @@ class LaplaceWavelet(measure):
 	@property
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")
+
+if __name__ == "__main__":
+	gw = GaussianWavelet(1, 14)
+	w1 = gw.sample()
+	n = gw.cumcovInnerProd(w1,w1)
+	

@@ -116,9 +116,9 @@ class inverseProblem():
 	
 	def DI_vec_Wavelet(self, x, u, obs):
 		J = self.prior.maxJ
-		grad_vec = np.zeros((2**J,))
-		for n in range(2**J):
-			h_coeff = np.zeros((2**J,))
+		grad_vec = np.zeros((2**(J-1),))
+		for n in range(2**(J-1)):
+			h_coeff = np.zeros((2**(J-1),))
 			h_coeff[n] = 1
 			h_coeff_packed = self.pack(h_coeff)
 			h = moi.mapOnInterval("wavelet", h_coeff_packed)
@@ -146,12 +146,12 @@ class inverseProblem():
 	
 	def D2I_mat_Wavelet(self, x, u, obs):
 		J = self.prior.maxJ
-		hess_mat = np.zeros((2**J, 2**J))
-		for l1 in range(2**J):
-			for l2 in range(l1, 2**J):
-				h_modes1 = np.zeros((2**J,))
+		hess_mat = np.zeros((2**(J-1), 2**(J-1)))
+		for l1 in range(2**(J-1)):
+			for l2 in range(l1, 2**(J-1)):
+				h_modes1 = np.zeros((2**(J-1),))
 				h_modes1[l1] = 1.0
-				h_modes2 = np.zeros((2**J,))
+				h_modes2 = np.zeros((2**(J-1),))
 				h_modes2[l2] = 1.0
 				h1 = moi.mapOnInterval("wavelet", self.pack(h_modes1))
 				h2 = moi.mapOnInterval("wavelet", self.pack(h_modes2))
@@ -191,6 +191,8 @@ class inverseProblem():
 				v_coeffs = []
 				step = prior.sample().waveletcoeffs
 				for n, uwc in enumerate(u.waveletcoeffs):
+					if n >= len(step): # if sampling resolution is lower than random walker's wavelet coefficient vector
+						break
 					v_coeffs.append(sqrt(1-2*delta)*uwc + sqrt(2*delta)*step[n])
 				v = moi.mapOnInterval("wavelet", v_coeffs)
 				v1 = ip.Phi(x, u, obs)
@@ -409,7 +411,7 @@ if __name__ == "__main__":
 		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
-		gamma = 0.001
+		gamma = 0.05
 		delta = 0.05
 	
 		# boundary values for forward problem
@@ -425,16 +427,16 @@ if __name__ == "__main__":
 		
 		# prior measure:
 		maxJ = 7
-		kappa = 10
+		kappa = 0.5
 		prior = GaussianWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
 		u0 = prior.sample()
 		
 		# case 2: given ground truth
-		J = 9
+		"""J = 9
 		num = 2**J
-		u0 = testfnc(J)
+		u0 = testfnc(J)"""
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		plt.figure(1)
@@ -444,7 +446,7 @@ if __name__ == "__main__":
 		
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
-		x0_ind = range(5, 495, 5) # observation indices
+		x0_ind = range(5, 495, 50) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(2)
 		plt.plot(x, p0.handle(x), 'k')
@@ -486,20 +488,23 @@ if __name__ == "__main__":
 			avg = avg/len(uHist)
 			uHist_mean_c.append(avg)
 		
+		uHistLast = moi.mapOnInterval("wavelet", uHist[-1], interpolationdegree=1)
 		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
 		pHist_mean = ip.Ffnc(x, uHist_mean)
 		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
+		pLast = ip.Ffnc(x, uHistLast)
 	
 		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1)
+		plt.plot(x, uHistLast.values, 'b')
 		plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
 		plt.plot(x, u0.handle(x), 'k', linewidth=1)
 		
 		plt.figure(2)
 		plt.plot(x, pStart.handle(x), 'r')
 		plt.plot(x, pHist_mean.handle(x), 'g')
-		plt.plot(x, pHistfnc[-1].handle(x), 'b')
+		plt.plot(x, pLast.values, 'b')
 		
-		data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
+		#data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
 		
 		#uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 1)
 		
