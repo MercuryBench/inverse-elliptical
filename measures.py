@@ -100,7 +100,7 @@ class GaussianWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.normal(0, self.kappa * 2**(-j*3/2)*(1+j)**(-0.501), (2**j,)) for j in range(self.maxJ-1)]
+		coeffs = [np.random.normal(0, 2**(-j*3/2)*(1+j)**(-0.501)/self.kappa, (2**j,)) for j in range(self.maxJ-1)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
 		
 		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
@@ -112,7 +112,7 @@ class GaussianWavelet(measure):
 			j_besovnorm[j] = np.sum((w.waveletcoeffs[j])**2*4**(j))
 		return math.sqrt(np.sum(j_besovnorm))"""
 	def normpart(self, u):
-		return 1.0/2*self.covInnerProd(u, u)
+		return 1.0/2*self.covInnerProd(u, u)*self.kappa
 	def norm(self, u):
 		return math.sqrt(self.covInnerProd(u, u))
 	
@@ -134,7 +134,7 @@ class GaussianWavelet(measure):
 	
 	@property
 	def mean(self):
-		pass
+		return np.concatenate((np.array([0]), [np.zeros((2**j,)) for j in range(self.maxJ-1)]))
 	@property
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")
@@ -148,7 +148,7 @@ class LaplaceWavelet(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		coeffs = [np.random.laplace(0, self.kappa * 2**(-j*3/2)*(1+j)**(-1.1), (2**j,)) for j in range(self.maxJ-1)]
+		coeffs = [np.random.laplace(0, 2**(-j*3/2)*(1+j)**(-1.1)/self.kappa, (2**j,)) for j in range(self.maxJ-1)]
 		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
 		#coeffs = [np.random.laplace(0, self.kappa, (2**j,)) for j in range(self.maxJ)]
 		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
@@ -160,7 +160,7 @@ class LaplaceWavelet(measure):
 		for j in range(1, self.maxJ+1):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovnorm[j] = np.sum(np.abs(w.waveletcoeffs[j])*2**(jnumber/2))
-		return np.sum(j_besovnorm)
+		return np.sum(j_besovnorm)*self.kappa
 		
 		
 	@property

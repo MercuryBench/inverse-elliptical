@@ -411,7 +411,7 @@ if __name__ == "__main__":
 		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
-		gamma = 0.05
+		gamma = 0.001
 		delta = 0.05
 	
 		# boundary values for forward problem
@@ -431,12 +431,12 @@ if __name__ == "__main__":
 		prior = GaussianWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
-		u0 = prior.sample()
+		#u0 = prior.sample()
 		
 		# case 2: given ground truth
-		"""J = 9
+		J = 9
 		num = 2**J
-		u0 = testfnc(J)"""
+		u0 = testfnc(J)
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		plt.figure(1)
@@ -446,7 +446,7 @@ if __name__ == "__main__":
 		
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
-		x0_ind = range(5, 495, 50) # observation indices
+		x0_ind = range(5, 495, 5) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(2)
 		plt.plot(x, p0.handle(x), 'k')
@@ -464,6 +464,8 @@ if __name__ == "__main__":
 		ww[2] = np.array([0.2, -0.15, -0.05, 0.1])
 		uStart = moi.mapOnInterval("wavelet", ww)"""
 		
+		# possibility 3: zero
+		uStart = moi.mapOnInterval("wavelet", prior.mean)
 		
 		uHist = ip.randomwalk(uStart, obs, delta, 1000, printDiagnostic=True)
 		plt.figure(3)
@@ -493,20 +495,33 @@ if __name__ == "__main__":
 		pHist_mean = ip.Ffnc(x, uHist_mean)
 		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
 		pLast = ip.Ffnc(x, uHistLast)
-	
+		
+		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 10)
+		pMAP = ip.Ffnc(x, uMAP)
+		
 		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1)
-		plt.plot(x, uHistLast.values, 'b')
+		#plt.plot(x, uHistLast.values, 'b')
 		plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
 		plt.plot(x, u0.handle(x), 'k', linewidth=1)
+		plt.plot(x, uMAP.values, 'y')
 		
 		plt.figure(2)
 		plt.plot(x, pStart.handle(x), 'r')
 		plt.plot(x, pHist_mean.handle(x), 'g')
-		plt.plot(x, pLast.values, 'b')
+		#plt.plot(x, pLast.values, 'b')
+		plt.plot(x, pMAP.values, 'y')
+		
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
 		
 		#data = [x, gamma, delta, pplus, pminus, maxJ, kappa, u0.values, J, num, k0.values, p0.values, x0_ind, obs, uStart.values, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
 		
-		#uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 1)
+		
 		
 		"""plt.figure()
 		for pf in pHistfnc:
