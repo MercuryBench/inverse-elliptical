@@ -288,6 +288,120 @@ def testfnc(J=9):
 	return u0
 
 if __name__ == "__main__":
+	if len(sys.argv) > 1 and sys.argv[1] == "1":
+		# spatial resolution
+		x = np.linspace(0, 1, 512)
+		# observational noise
+		gamma = 0.05
+		# random walk parameter
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+	
+		# prior measure:
+		alpha = 0.7
+		beta = 1.5
+		mean = np.zeros((31,))
+		prior = GaussianFourier(mean, alpha, beta)
+	
+		# artificial data
+		J = 9
+		num = 2**J
+		u0 = testfnc(J)
+		
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
+	
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 495, 5) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+	
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# random walk sampling from posterior
+		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000, printDiagnostic=True)
+		"""plt.figure(3)
+	
+		for uh in uHist:
+			plt.plot(x, moi.evalmodes(uh, x))"""
+		uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
+		
+	
+		
+	
+		"""# test gradient calculation
+		h = moi.mapOnInterval("fourier", u0.fouriermodes - uHist_mean.fouriermodes)
+		DFuh = ip.DFfnc(x, uHist_mean, h)
+		D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
+		plt.figure(4)
+		plt.plot(x, pHist_mean.handle(x), 'g')
+		plt.plot(x, p0.handle(x), 'k')
+		T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
+		T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
+		plt.plot(x, T1.handle(x), 'b')
+		plt.plot(x, T2.handle(x), 'm')
+		plt.plot(x[x0_ind], obs, 'r.')
+		
+		uplush = uHist_mean + h
+		
+		print("I(uHist_mean)=" + str(ip.I(x, uHist_mean, obs)))
+		print("I(uHist_mean + h)=" + str(ip.I(x, uplush, obs)))
+		print("I(uHist_mean) + DI(uHist_mean)(h)=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h)))
+		print("I(uHist_mean) + DI(uHist_mean)(h) + 1/2*D2I(uHist_mean)[h,h]=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h) + 0.5*ip.D2I(x, uHist_mean, obs, h, h)))"""
+		
+		#h = u - uMAP
+		#h_modes = u_modes - uMAP_modes 
+		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
+		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
+		uMAP = ip.find_uMAP(x, uHist_mean.fouriermodes, obs, maxIt = 200)
+		pMAP = ip.Ffnc(x, uMAP)
+		plt.figure(1)
+		plt.clf()
+		plt.ion()
+		plt.plot(x, p0.handle(x), 'k', label="F(u0)")
+		#plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g', label="F(rw mean)")
+		plt.plot(x, pMAP.values, 'y', label="F(uMAP)")
+		plt.plot(x[x0_ind], obs, 'r.', label="obs")
+		plt.legend(loc='upper left')
+
+		plt.figure(2)
+		plt.clf()
+		plt.plot(x, u0.handle(x), 'k', linewidth=1, label="u0")
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1, label="random walk mean")
+		#plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, uMAP.values, 'y', label="uMAP")
+		plt.legend()
+		
+		"""postApprox = GaussianFourierExpl(u_res.fouriermodes, np.linalg.inv(ip.D2I_mat(x, u_res, obs)))
+		data = [x, gamma, delta, pplus, pminus, u0.values, k0.values, p0.values, x0_ind, obs, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
+		
+		Phi_uMAP = ip.Phi(x, u_res, obs)
+		Phiprime_uMAP = lambda h: ip.DPhi(x, u_res, obs, h)
+		Phiprimeprime_uMAP = lambda h1, h2: ip.D2Phi(x, u_res, obs, h1, h2)
+		dnu_unnorm = lambda u: exp(-(Phi_uMAP + Phiprime_uMAP(u-u_res) + 0.5* Phiprimeprime_uMAP(u-u_res, u-u_res)))
+		
+		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))"""
+		plt.ion()
+		plt.show()
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
 	if len(sys.argv) > 1 and sys.argv[1] == "2a":
 		# spatial resolution
 		x = np.linspace(0, 1, 512)
@@ -323,6 +437,120 @@ if __name__ == "__main__":
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
 		x0_ind = range(5, 495, 5) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+	
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# random walk sampling from posterior
+		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000, printDiagnostic=True)
+		"""plt.figure(3)
+	
+		for uh in uHist:
+			plt.plot(x, moi.evalmodes(uh, x))"""
+		uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
+		
+	
+		
+	
+		"""# test gradient calculation
+		h = moi.mapOnInterval("fourier", u0.fouriermodes - uHist_mean.fouriermodes)
+		DFuh = ip.DFfnc(x, uHist_mean, h)
+		D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
+		plt.figure(4)
+		plt.plot(x, pHist_mean.handle(x), 'g')
+		plt.plot(x, p0.handle(x), 'k')
+		T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
+		T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
+		plt.plot(x, T1.handle(x), 'b')
+		plt.plot(x, T2.handle(x), 'm')
+		plt.plot(x[x0_ind], obs, 'r.')
+		
+		uplush = uHist_mean + h
+		
+		print("I(uHist_mean)=" + str(ip.I(x, uHist_mean, obs)))
+		print("I(uHist_mean + h)=" + str(ip.I(x, uplush, obs)))
+		print("I(uHist_mean) + DI(uHist_mean)(h)=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h)))
+		print("I(uHist_mean) + DI(uHist_mean)(h) + 1/2*D2I(uHist_mean)[h,h]=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h) + 0.5*ip.D2I(x, uHist_mean, obs, h, h)))"""
+		
+		#h = u - uMAP
+		#h_modes = u_modes - uMAP_modes 
+		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
+		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
+		uMAP = ip.find_uMAP(x, uHist_mean.fouriermodes, obs, maxIt = 200)
+		pMAP = ip.Ffnc(x, uMAP)
+		plt.figure(1)
+		plt.clf()
+		plt.ion()
+		plt.plot(x, p0.handle(x), 'k', label="F(u0)")
+		#plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g', label="F(rw mean)")
+		plt.plot(x, pMAP.values, 'y', label="F(uMAP)")
+		plt.plot(x[x0_ind], obs, 'r.', label="obs")
+		plt.legend(loc='upper left')
+
+		plt.figure(2)
+		plt.clf()
+		plt.plot(x, u0.handle(x), 'k', linewidth=1, label="u0")
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1, label="random walk mean")
+		#plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, uMAP.values, 'y', label="uMAP")
+		plt.legend()
+		
+		"""postApprox = GaussianFourierExpl(u_res.fouriermodes, np.linalg.inv(ip.D2I_mat(x, u_res, obs)))
+		data = [x, gamma, delta, pplus, pminus, u0.values, k0.values, p0.values, x0_ind, obs, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
+		
+		Phi_uMAP = ip.Phi(x, u_res, obs)
+		Phiprime_uMAP = lambda h: ip.DPhi(x, u_res, obs, h)
+		Phiprimeprime_uMAP = lambda h1, h2: ip.D2Phi(x, u_res, obs, h1, h2)
+		dnu_unnorm = lambda u: exp(-(Phi_uMAP + Phiprime_uMAP(u-u_res) + 0.5* Phiprimeprime_uMAP(u-u_res, u-u_res)))
+		
+		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))"""
+		plt.ion()
+		plt.show()
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
+	if len(sys.argv) > 1 and sys.argv[1] == "2b":
+		# spatial resolution
+		x = np.linspace(0, 1, 512)
+		# observational noise
+		gamma = 0.001
+		# random walk parameter
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+	
+		# prior measure:
+		alpha = 0.7
+		beta = 1.5
+		mean = np.zeros((31,))
+		prior = GaussianFourier(mean, alpha, beta)
+	
+		# artificial data
+		J = 9
+		num = 2**J
+		u0 = testfnc(J)
+		
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
+	
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 350, 50)+range(355, 510, 5) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 	
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
