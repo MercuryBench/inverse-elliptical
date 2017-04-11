@@ -288,9 +288,12 @@ def testfnc(J=9):
 	return u0
 
 if __name__ == "__main__":
-	if len(sys.argv) > 1 and sys.argv[1] == "g":
+	if len(sys.argv) > 1 and sys.argv[1] == "2a":
+		# spatial resolution
 		x = np.linspace(0, 1, 512)
-		gamma = 0.02
+		# observational noise
+		gamma = 0.001
+		# random walk parameter
 		delta = 0.05
 	
 		# boundary values for forward problem
@@ -310,64 +313,34 @@ if __name__ == "__main__":
 		mean = np.zeros((31,))
 		prior = GaussianFourier(mean, alpha, beta)
 	
-		# case 1: random ground truth
-		u0 = prior.sample()
-		
-		# case 2: given ground truth
-		"""J = 9
+		# artificial data
+		J = 9
 		num = 2**J
-		x = np.linspace(0, 1, 2**(J), endpoint=False)
-		gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
-		g1 = lambda x: gg1(2**J*x)
-		gg2 = lambda x: (1 - 0.4*x**2)/(2**(J+3)) + np.sin(7*x/(2*pi))/(1 + x**2/2**J)
-		g2 = lambda x: gg2(2**J*x)
-		gg3 = lambda x: 3 + 3*(x**2/(2**(2*J)))*np.sin(x/(8*pi))
-		g3 = lambda x: gg3(2**J*x)
-		gg4 = lambda x: (x**2/3**J)*0.1*np.cos(x/(2*pi))-x**3/8**J + 0.1*np.sin(3*x/(2*pi))
-		g4 = lambda x: gg4(2**J*x)
-		vec1 = g2(x[0:2**(J-5/2)])
-		vec2 = g1(x[2**(J-5/2):2**(J-1.5)])
-		vec3 = g3(x[2**(J-1.5):2**(J)-2**(J-1.2)])
-		vec4 = g4(x[2**(J)-2**(J-1.2):2**(J)])
-
-		f = np.concatenate((vec1, vec2, vec3, vec4))
-		u0 = moi.mapOnInterval("expl", f)"""
+		u0 = testfnc(J)
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)))
-		plt.figure(1)
-		plt.ion()
-		plt.plot(x, u0.handle(x))
-		plt.show()
 	
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
-		x0_ind = range(10, 490, 10) # observation indices
+		x0_ind = range(5, 495, 5) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
-		plt.figure(2)
-		plt.plot(x, p0.handle(x), 'k')
-	
-		plt.plot(x[x0_ind], obs, 'r.')
 	
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
-	
+		
+		# random walk sampling from posterior
 		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000, printDiagnostic=True)
-		plt.figure(3)
+		"""plt.figure(3)
 	
 		for uh in uHist:
-			plt.plot(x, moi.evalmodes(uh, x))
+			plt.plot(x, moi.evalmodes(uh, x))"""
 		uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
 		pHist_mean = ip.Ffnc(x, uHist_mean)
 		pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
+		
 	
-		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=4)
-		plt.plot(x, moi.evalmodes(uHist[0], x), 'r', linewidth=4)
-		plt.plot(x, u0.values, 'k', linewidth=4)
+		
 	
-		plt.figure(2)
-		plt.plot(x, pStart.handle(x), 'r')
-		plt.plot(x, pHist_mean.handle(x), 'g')
-	
-		# test gradient calculation
+		"""# test gradient calculation
 		h = moi.mapOnInterval("fourier", u0.fouriermodes - uHist_mean.fouriermodes)
 		DFuh = ip.DFfnc(x, uHist_mean, h)
 		D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
@@ -385,22 +358,33 @@ if __name__ == "__main__":
 		print("I(uHist_mean)=" + str(ip.I(x, uHist_mean, obs)))
 		print("I(uHist_mean + h)=" + str(ip.I(x, uplush, obs)))
 		print("I(uHist_mean) + DI(uHist_mean)(h)=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h)))
-		print("I(uHist_mean) + DI(uHist_mean)(h) + 1/2*D2I(uHist_mean)[h,h]=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h) + 0.5*ip.D2I(x, uHist_mean, obs, h, h)))
+		print("I(uHist_mean) + DI(uHist_mean)(h) + 1/2*D2I(uHist_mean)[h,h]=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h) + 0.5*ip.D2I(x, uHist_mean, obs, h, h)))"""
 		
 		#h = u - uMAP
 		#h_modes = u_modes - uMAP_modes 
 		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
 		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
-		u_res = ip.find_uMAP(x, uHist_mean.fouriermodes, obs, maxIt = 200)
-		print("I(u_res)=" + str(ip.I(x, u_res, obs)))
-		p_res = ip.Ffnc(x, u_res)
+		uMAP = ip.find_uMAP(x, uHist_mean.fouriermodes, obs, maxIt = 200)
+		pMAP = ip.Ffnc(x, uMAP)
+		plt.figure(1)
+		plt.clf()
+		plt.ion()
+		plt.plot(x, p0.handle(x), 'k', label="F(u0)")
+		#plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g', label="F(rw mean)")
+		plt.plot(x, pMAP.values, 'y', label="F(uMAP)")
+		plt.plot(x[x0_ind], obs, 'r.', label="obs")
+		plt.legend(loc='upper left')
+
 		plt.figure(2)
-		plt.plot(x, p_res.values, 'm')
-		plt.figure(3)
-		plt.plot(x, u_res.values, 'm', linewidth=4)
+		plt.clf()
+		plt.plot(x, u0.handle(x), 'k', linewidth=1, label="u0")
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1, label="random walk mean")
+		#plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, uMAP.values, 'y', label="uMAP")
+		plt.legend()
 		
-		
-		postApprox = GaussianFourierExpl(u_res.fouriermodes, np.linalg.inv(ip.D2I_mat(x, u_res, obs)))
+		"""postApprox = GaussianFourierExpl(u_res.fouriermodes, np.linalg.inv(ip.D2I_mat(x, u_res, obs)))
 		data = [x, gamma, delta, pplus, pminus, u0.values, k0.values, p0.values, x0_ind, obs, uHist, uHist_mean.values, pHist_mean.values, pStart.values]
 		
 		Phi_uMAP = ip.Phi(x, u_res, obs)
@@ -408,7 +392,325 @@ if __name__ == "__main__":
 		Phiprimeprime_uMAP = lambda h1, h2: ip.D2Phi(x, u_res, obs, h1, h2)
 		dnu_unnorm = lambda u: exp(-(Phi_uMAP + Phiprime_uMAP(u-u_res) + 0.5* Phiprimeprime_uMAP(u-u_res, u-u_res)))
 		
-		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))
+		dmu_unnorm = lambda u: exp(-ip.Phi(x, u, obs))"""
+		plt.ion()
+		plt.show()
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
+	elif len(sys.argv) > 1 and sys.argv[1] == "3":
+		# spatial resolution
+		x = np.linspace(0, 1, 512)
+		# noise standard deviation
+		gamma = 0.05
+		# random walk parameter
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+		
+		# prior measure:
+		maxJ = 7
+		kappa = 0.5
+		prior = GaussianWavelet(kappa, maxJ)
+		
+		# artificial data
+		J = 9 # prior can't fully approximate this!
+		num = 2**J
+		u0 = testfnc(J)
+		
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
+		
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 495, 5) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+		
+		# plot solution and observation
+		
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# start of random walk
+		uStart = moi.mapOnInterval("wavelet", prior.mean)
+		
+		uHist = ip.randomwalk(uStart, obs, delta, 1000, printDiagnostic=True)
+		
+		# list of functions during random walk (for debugging or more info)
+		uHistfnc = []
+		pHistfnc = []
+		IHist = []
+		PhiHist = []
+		for uh in uHist:
+			uhfnc = moi.mapOnInterval("wavelet", uh, interpolationdegree=1)
+			pfnc = ip.Ffnc(x, uhfnc)
+			uHistfnc.append(uhfnc)
+			pHistfnc.append(pfnc)
+			IHist.append(ip.I(x, uhfnc, obs))
+			PhiHist.append(ip.Phi(x, uhfnc, obs))
+		
+		# calculate random walk mean (but due to low acceptance rate this is a bad approximation)
+		uHist_mean_c = []
+		for j in range(len(uHist[0])):
+			avg = 0
+			for k in range(30, len(uHist)):
+				avg = avg + uHist[k][j]
+			avg = avg/len(uHist)
+			uHist_mean_c.append(avg)
+		
+		uHistLast = moi.mapOnInterval("wavelet", uHist[-1], interpolationdegree=1)
+		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
+		pLast = ip.Ffnc(x, uHistLast)
+		
+		# find uMAP by optimization procedure
+		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 40)
+		# map uMAP to solution space
+		pMAP = ip.Ffnc(x, uMAP)
+		
+		plt.figure(2)
+		plt.plot(x, u0.handle(x), 'k', linewidth=1, label="u0")
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1, label="random walk mean")
+		#plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, uMAP.values, 'y', label="uMAP")
+		plt.legend()
+		
+		plt.figure(1)
+		plt.ion()
+		plt.plot(x, p0.handle(x), 'k', label="F(u0)")
+		#plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g', label="F(rw mean)")
+		plt.plot(x, pMAP.values, 'y', label="F(uMAP)")
+		plt.plot(x[x0_ind], obs, 'r.', label="obs")
+		plt.legend(loc='upper left')
+		
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
+		
+		plt.show()
+	elif len(sys.argv) > 1 and sys.argv[1] == "4a":
+		# spatial resolution
+		x = np.linspace(0, 1, 512)
+		# noise standard deviation
+		gamma = 0.001
+		# random walk parameter
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+		
+		# prior measure:
+		maxJ = 7
+		kappa = 0.5
+		prior = GaussianWavelet(kappa, maxJ)
+		
+		# artificial data
+		J = 9 # prior can't fully approximate this!
+		num = 2**J
+		u0 = testfnc(J)
+		
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
+		
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 495, 5) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+		
+		# plot solution and observation
+		
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# start of random walk
+		uStart = moi.mapOnInterval("wavelet", prior.mean)
+		
+		uHist = ip.randomwalk(uStart, obs, delta, 1000, printDiagnostic=True)
+		
+		# list of functions during random walk (for debugging or more info)
+		uHistfnc = []
+		pHistfnc = []
+		IHist = []
+		PhiHist = []
+		for uh in uHist:
+			uhfnc = moi.mapOnInterval("wavelet", uh, interpolationdegree=1)
+			pfnc = ip.Ffnc(x, uhfnc)
+			uHistfnc.append(uhfnc)
+			pHistfnc.append(pfnc)
+			IHist.append(ip.I(x, uhfnc, obs))
+			PhiHist.append(ip.Phi(x, uhfnc, obs))
+		
+		# calculate random walk mean (but due to low acceptance rate this is a bad approximation)
+		uHist_mean_c = []
+		for j in range(len(uHist[0])):
+			avg = 0
+			for k in range(30, len(uHist)):
+				avg = avg + uHist[k][j]
+			avg = avg/len(uHist)
+			uHist_mean_c.append(avg)
+		
+		uHistLast = moi.mapOnInterval("wavelet", uHist[-1], interpolationdegree=1)
+		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
+		pLast = ip.Ffnc(x, uHistLast)
+		
+		# find uMAP by optimization procedure
+		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 40)
+		# map uMAP to solution space
+		pMAP = ip.Ffnc(x, uMAP)
+		
+		plt.figure(2)
+		plt.plot(x, u0.handle(x), 'k', linewidth=1, label="u0")
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1, label="random walk mean")
+		#plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, uMAP.values, 'y', label="uMAP")
+		plt.legend()
+		
+		plt.figure(1)
+		plt.ion()
+		plt.plot(x, p0.handle(x), 'k', label="F(u0)")
+		#plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g', label="F(rw mean)")
+		plt.plot(x, pMAP.values, 'y', label="F(uMAP)")
+		plt.plot(x[x0_ind], obs, 'r.', label="obs")
+		plt.legend(loc='upper left')
+		
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
+		
+		plt.show()
+	elif len(sys.argv) > 1 and sys.argv[1] == "4b":
+		# spatial resolution
+		x = np.linspace(0, 1, 512)
+		# noise standard deviation
+		gamma = 0.001
+		# random walk parameter
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+		
+		# prior measure:
+		maxJ = 7
+		kappa = 0.5
+		prior = GaussianWavelet(kappa, maxJ)
+		
+		# artificial data
+		J = 9 # prior can't fully approximate this!
+		num = 2**J
+		u0 = testfnc(J)
+		
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
+		
+		# construct solution and observation
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 350, 50)+range(355, 510, 5) # observation indices
+		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
+		
+		# plot solution and observation
+		
+		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
+		
+		# start of random walk
+		uStart = moi.mapOnInterval("wavelet", prior.mean)
+		
+		uHist = ip.randomwalk(uStart, obs, delta, 1000, printDiagnostic=True)
+		
+		# list of functions during random walk (for debugging or more info)
+		uHistfnc = []
+		pHistfnc = []
+		IHist = []
+		PhiHist = []
+		for uh in uHist:
+			uhfnc = moi.mapOnInterval("wavelet", uh, interpolationdegree=1)
+			pfnc = ip.Ffnc(x, uhfnc)
+			uHistfnc.append(uhfnc)
+			pHistfnc.append(pfnc)
+			IHist.append(ip.I(x, uhfnc, obs))
+			PhiHist.append(ip.Phi(x, uhfnc, obs))
+		
+		# calculate random walk mean (but due to low acceptance rate this is a bad approximation)
+		uHist_mean_c = []
+		for j in range(len(uHist[0])):
+			avg = 0
+			for k in range(30, len(uHist)):
+				avg = avg + uHist[k][j]
+			avg = avg/len(uHist)
+			uHist_mean_c.append(avg)
+		
+		uHistLast = moi.mapOnInterval("wavelet", uHist[-1], interpolationdegree=1)
+		uHist_mean = moi.mapOnInterval("wavelet", uHist_mean_c, interpolationdegree=1)
+		pHist_mean = ip.Ffnc(x, uHist_mean)
+		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
+		pLast = ip.Ffnc(x, uHistLast)
+		
+		# find uMAP by optimization procedure
+		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 40)
+		# map uMAP to solution space
+		pMAP = ip.Ffnc(x, uMAP)
+		
+		plt.figure(2)
+		plt.plot(x, u0.handle(x), 'k', linewidth=1, label="u0")
+		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1, label="random walk mean")
+		#plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
+		plt.plot(x, uMAP.values, 'y', label="uMAP")
+		plt.legend()
+		
+		plt.figure(1)
+		plt.ion()
+		plt.plot(x, p0.handle(x), 'k', label="F(u0)")
+		#plt.plot(x, pStart.handle(x), 'r')
+		plt.plot(x, pHist_mean.handle(x), 'g', label="F(rw mean)")
+		plt.plot(x, pMAP.values, 'y', label="F(uMAP)")
+		plt.plot(x[x0_ind], obs, 'r.', label="obs")
+		plt.legend(loc='upper left')
+		
+		print("u0:")
+		print("Data misfit = " + str(ip.Phi(x, u0, obs)) + ", Prior norm = " + str(ip.prior.normpart(u0)))
+		print("Energy = " + str(ip.I(x, u0, obs)))
+
+		print("uMAP:")
+		print("Data misfit = " + str(ip.Phi(x, uMAP, obs)) + ", Prior norm = " + str(ip.prior.normpart(uMAP)))
+		print("Energy = " + str(ip.I(x, uMAP, obs)))
+		
+		plt.show()
 	elif len(sys.argv) > 1 and sys.argv[1] == "w":
 		x = np.linspace(0, 1, 512)
 		gamma = 0.001
@@ -499,6 +801,7 @@ if __name__ == "__main__":
 		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 10)
 		pMAP = ip.Ffnc(x, uMAP)
 		
+		plt.figure(3)
 		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1)
 		#plt.plot(x, uHistLast.values, 'b')
 		plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
