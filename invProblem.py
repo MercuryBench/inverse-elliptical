@@ -634,7 +634,7 @@ if __name__ == "__main__":
 		# spatial resolution
 		x = np.linspace(0, 1, 512)
 		# noise standard deviation
-		gamma = 0.05
+		gamma = 0.02
 		# random walk parameter
 		delta = 0.05
 	
@@ -961,12 +961,12 @@ if __name__ == "__main__":
 		prior = GaussianWavelet(kappa, maxJ)
 		
 		# case 1: random ground truth
-		#u0 = prior.sample()
+		u0 = prior.sample()
 		
 		# case 2: given ground truth
 		J = 9
 		num = 2**J
-		u0 = testfnc(J)
+		#u0 = testfnc(J)
 		
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		plt.figure(1)
@@ -1064,6 +1064,36 @@ if __name__ == "__main__":
 		#plt.figure()
 		#plt.plot(IHist)
 		#plt.plot(PhiHist, 'r')
+	elif len(sys.argv) > 1 and sys.argv[1] == "paramInf":
+		logkappa = np.random.normal(0, 1)
+		kappa = exp(logkappa)
+		x = np.linspace(0, 1, 512)
+		gamma = 0.001
+		delta = 0.05
+	
+		# boundary values for forward problem
+		# -(k * p')' = g
+		# p(0) = pminus
+		# p(1) = pplus
+		pplus = 2.0
+		pminus = 1.0	
+		# right hand side of forward problem
+		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		# construct forward problem
+		fwd = linEllipt(g, pplus, pminus)
+		
+		# prior measure:
+		maxJ = 7
+		prior = GaussianWavelet(kappa, maxJ)
+		
+		# case 1: random ground truth
+		u0 = prior.sample()
+		plt.figure()
+		plt.ion()
+		plt.plot(x, u0.values)
+		plt.show()
+		
+		
 		
 	else:
 		x = np.linspace(0, 1, 512)
@@ -1097,7 +1127,7 @@ if __name__ == "__main__":
 		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
 		
 		# construct solution and observation
-		p0 = fwd.solve(x, k0)
+		"""p0 = fwd.solve(x, k0)
 		x0_ind = range(5, 495, 5) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(2)
@@ -1107,4 +1137,4 @@ if __name__ == "__main__":
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 		plt.ion()
 		plt.figure()
-		plt.plot(x, u0_test.values)
+		plt.plot(x, u0_test.values)"""
