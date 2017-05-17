@@ -2,6 +2,7 @@ from __future__ import division
 from abc import ABCMeta, abstractmethod, abstractproperty
 import numpy as np
 import mapOnInterval as moi
+import mapOnInterval2d as moi2d
 import math
 
 class measure:
@@ -76,7 +77,7 @@ class GaussianFourier2d(measure):
 			return
 		modes = np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
 		#return modes
-		return moi.mapOnInterval("fourier", modes)
+		return moi2d.mapOnInterval("fourier", modes)
 	
 	def covInnerProd(self, u1, u2):
 		evs = self.eigenvals
@@ -286,8 +287,13 @@ if __name__ == "__main__":
 	plt.plot(xs, w2.values, 'r')
 	plt.plot(xs, w3.values, 'g')"""
 	
-	gf2d = GaussianFourier2d(np.zeros((5,5)), 1, 1)
+	gf2d = GaussianFourier2d(np.zeros((21,21)), 1, 1)
 	
+	fun = gf2d.sample()
+	plt.figure()
+	plt.ion()
+	plt.imshow(fun.values, interpolation='None')
+	plt.show()
 	
 	
 	
