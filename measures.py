@@ -170,8 +170,80 @@ class LaplaceWavelet(measure):
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")
 
+class GeneralizedGaussianWavelet(measure): # like GaussianWavelet, but with scale parameter s
+	def __init__(self, kappa, s, maxJ):
+		self.kappa = kappa
+		self.s = s
+		self.maxJ = maxJ # cutoff frequency
+		
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
+		coeffs = [np.random.normal(0, 2**(-j*self.s)*self.kappa, (2**j,)) for j in range(self.maxJ-1)]
+		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
+		
+		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
+		return moi.mapOnInterval("wavelet", coeffs, interpolationdegree = 1)
+		
+	"""def normpart(self, w):
+		j_besovnorm = np.zeros((self.maxJ,))
+		for j in range(self.maxJ):
+			j_besovnorm[j] = np.sum((w.waveletcoeffs[j])**2*4**(j))
+		return math.sqrt(np.sum(j_besovnorm))"""
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)*self.kappa
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+	
+	def covInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber*self.s))
+		return np.sum(j_besovprod)
+		
+	def cumcovInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber*self.s))
+		return np.cumsum(j_besovprod)
+	
+	@property
+	def mean(self):
+		return np.concatenate((np.array([0]), [np.zeros((2**j,)) for j in range(self.maxJ-1)]))
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")
+
 if __name__ == "__main__":
-	gw = GaussianWavelet(1, 14)
-	w1 = gw.sample()
-	n = gw.cumcovInnerProd(w1,w1)
+	import matplotlib.pyplot as plt
+	import haarWavelet as hW
+	s = 1
+	ggw = GeneralizedGaussianWavelet(1, 0.7, 16)
+	ggw2 = GeneralizedGaussianWavelet(1, 1.3, 16)
+	ggw3 = GeneralizedGaussianWavelet(1, 1.8, 16)
+	w1 = ggw.sample()
+	w2 = ggw2.sample()
+	w3 = ggw3.sample()
+	n = ggw2.cumcovInnerProd(w2,w2)
+	n2 = ggw.cumcovInnerProd(w2,w2)
+	plt.figure()
+	plt.ion()
+	plt.plot(n)
+	plt.figure()
+	plt.plot(n2, 'r')
+	plt.show()
+	plt.figure()
+	J = 9
+	xs = np.linspace(0, 1, 2**J, endpoint=False)
+	plt.plot(xs, w1.values)
+	plt.plot(xs, w2.values, 'r')
+	plt.plot(xs, w3.values, 'g')
+	
+	
+	
 	

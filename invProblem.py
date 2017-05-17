@@ -159,10 +159,16 @@ class inverseProblem():
 				hess_mat[l2, l1] = hess_mat[l1, l2]
 		return hess_mat
 	
-	def randomwalk(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False): 	
+	def randomwalk(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
 		u = uStart
 		r = np.random.uniform(0, 1, N)
 		acceptionNum = 0
+		if customPrior == False:
+			print("No custom prior")
+			prior = self.prior
+		else:
+			print("Custom prior")
+			prior = customPrior
 		if uStart.inittype == "fourier":
 			u_modes = uStart.fouriermodes
 			uHist = [u_modes]
@@ -192,6 +198,7 @@ class inverseProblem():
 		elif uStart.inittype == "wavelet":
 			u_coeffs = uStart.waveletcoeffs
 			uHist = [u_coeffs]
+			uHistFull = [uStart]
 			for m in range(N):
 				v_coeffs = []
 				step = prior.sample().waveletcoeffs
@@ -212,8 +219,12 @@ class inverseProblem():
 					u_coeffs = v_coeffs
 					acceptionNum = acceptionNum + 1
 				uHist.append(u_coeffs)
+				if returnFull:
+					uHistFull.append(u)
 			if printDiagnostic:
 				print("acception probability: " + str(acceptionNum/N))
+			if returnFull:
+				return uHistFull
 			return uHist
 	
 	def find_uMAP(self, x, uStart, obs, maxIt = 5):
@@ -270,6 +281,10 @@ class inverseProblem():
 		temp = (np.sqrt(dmu_values) - np.sqrt(dnu_values))**2
 		dH = 1/sqrt(2)*sqrt(np.mean(temp))
 		return dH
+	
+def gaussDens(vec, mean, sigma):
+	d = len(vec)
+	return (2*pi*sigma**2)**(-d/2) * exp(-1/(2*sigma**2)*np.linalg.norm(vec-mean)**2)
 
 
 def testfnc(J=9):
@@ -944,9 +959,9 @@ if __name__ == "__main__":
 		print("Energy = " + str(ip.I(x, uMAP, obs)))
 		
 		plt.show()
-	elif len(sys.argv) > 1 and sys.argv[1] == "w":
+	elif len(sys.argv) > 1 and sys.argv[1] == "waveletParamInf":
 		x = np.linspace(0, 1, 512)
-		gamma = 0.001
+		gamma = 0.01
 		delta = 0.05
 	
 		# boundary values for forward problem
@@ -981,7 +996,7 @@ if __name__ == "__main__":
 		
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
-		x0_ind = range(5, 495, 5) # observation indices
+		x0_ind = range(5, 495, 15) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(2)
 		plt.plot(x, p0.handle(x), 'k')
@@ -1001,6 +1016,36 @@ if __name__ == "__main__":
 		
 		# possibility 3: zero
 		uStart = moi.mapOnInterval("wavelet", prior.mean)
+		
+		# possibility 4: uMAP
+		
+		
+		uMAP = ip.find_uMAP_wavelet_Gaussian(x, prior.sample().waveletcoeffs, obs, maxIt = 40)
+		pMAP = ip.Ffnc(x, uMAP)
+		plt.figure(4)
+		plt.plot(x, u0.values, 'g')
+		plt.plot(x, uMAP.values, 'm')
+		plt.figure(5)
+		plt.plot(x, p0.values, 'g')
+		plt.plot(x, pMAP.values, 'm')
+		plt.plot(x[x0_ind], obs, 'r.')
+		
+		kapparange = np.arange(0.3, 1.0, 0.1)
+		uHist = [[] for a in kapparange]
+		pHist = [[] for a in kapparange]
+		likelihoodvec = [[] for a in kapparange]
+		likelihoodmean = []
+		for mm, kapp in enumerate(kapparange):
+			uHist[mm] = ip.randomwalk(uMAP, obs, delta, 10000, printDiagnostic=True, returnFull=True, customPrior=GaussianWavelet(kapp, maxJ))
+		for mm, kapp in enumerate(kapparange):
+			for uuu in uHist[mm]:
+				newP = ip.Ffnc(x, uuu)
+				pHist[mm].append(newP)
+				likelihoodvec[mm].append(gaussDens(obs, newP.values[x0_ind], gamma))
+			likelihoodmean.append(np.mean(likelihoodvec[mm]))
+		plt.figure(3)
+		plt.plot(kapparange, likelihoodmean, '.')
+		
 		
 		uHist = ip.randomwalk(uStart, obs, delta, 1000, printDiagnostic=True)
 		plt.figure(3)
@@ -1031,10 +1076,8 @@ if __name__ == "__main__":
 		pStart = ip.Ffnc(x, moi.mapOnInterval("wavelet", uHist[0]))
 		pLast = ip.Ffnc(x, uHistLast)
 		
-		uMAP = ip.find_uMAP_wavelet_Gaussian(x, uHist[-1], obs, maxIt = 10)
-		pMAP = ip.Ffnc(x, uMAP)
 		
-		plt.figure(3)
+		plt.figure(1)
 		plt.plot(x, uHist_mean.handle(x), 'g', linewidth=1)
 		#plt.plot(x, uHistLast.values, 'b')
 		plt.plot(x, moi.mapOnInterval("wavelet", uHist[0], interpolationdegree=1).handle(x), 'r', linewidth=1)
@@ -1070,7 +1113,7 @@ if __name__ == "__main__":
 		#plt.plot(IHist)
 		#plt.plot(PhiHist, 'r')
 
-	elif len(sys.argv) > 1 and sys.argv[1] == "paramInf":
+	elif len(sys.argv) > 1 and sys.argv[1] == "gaussParamInf":
 		# spatial resolution
 		x = np.linspace(0, 1, 512)
 		# observational noise
@@ -1109,45 +1152,38 @@ if __name__ == "__main__":
 	
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 		
+		uMAP = ip.find_uMAP(x, prior.sample().fouriermodes, obs, maxIt = 200)
+		pMAP = ip.Ffnc(x, uMAP)
 		# random walk sampling from posterior
-		uHist = ip.randomwalk(prior.sample(), obs, delta, 1000, printDiagnostic=True)
+		#uHistFull = ip.randomwalk(uMAP, obs, delta, 1000, printDiagnostic=True, returnFull=True)
+		alpharange = np.arange(0.3, 1.5, 0.05)
+		uHistFull = [[] for a in alpharange]
+		pHistFull = [[] for a in alpharange]
+		likelihoodvec = [[] for a in alpharange]
+		likelihoodmean = []
+		for mm, alph in enumerate(alpharange):
+			uHistFull[mm] = ip.randomwalk(prior.sample(), obs, delta, 1000, printDiagnostic=True, returnFull=True, customPrior=GaussianFourier(mean, alph, beta))
+		for mm, alph in enumerate(alpharange):
+			for uuu in uHistFull[mm]:
+				newP = ip.Ffnc(x, uuu)
+				pHistFull[mm].append(newP)
+				likelihoodvec[mm].append(gaussDens(obs, newP.values[x0_ind], gamma))
+			likelihoodmean.append(np.mean(likelihoodvec[mm]))
+		plt.figure(3)
+		plt.plot(alpharange, likelihoodmean, '.')
+		plt.ion()
+		plt.show()
+		
 		"""plt.figure(3)
-	
+		
 		for uh in uHist:
 			plt.plot(x, moi.evalmodes(uh, x))"""
-		uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
-		pHist_mean = ip.Ffnc(x, uHist_mean)
-		pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
+		#uHist_mean = moi.mapOnInterval("fourier", np.mean(uHist, axis=0))
+		#pHist_mean = ip.Ffnc(x, uHist_mean)
+		#pStart = ip.Ffnc(x, moi.mapOnInterval("fourier", uHist[0]))
 		
-	
 		
-	
-		"""# test gradient calculation
-		h = moi.mapOnInterval("fourier", u0.fouriermodes - uHist_mean.fouriermodes)
-		DFuh = ip.DFfnc(x, uHist_mean, h)
-		D2Fuh = ip.D2Ffnc(x, uHist_mean, h, h)
-		plt.figure(4)
-		plt.plot(x, pHist_mean.handle(x), 'g')
-		plt.plot(x, p0.handle(x), 'k')
-		T1 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x))
-		T2 = moi.mapOnInterval("handle", lambda x: pHist_mean.handle(x) + DFuh.handle(x) + 0.5*D2Fuh.handle(x))
-		plt.plot(x, T1.handle(x), 'b')
-		plt.plot(x, T2.handle(x), 'm')
-		plt.plot(x[x0_ind], obs, 'r.')
 		
-		uplush = uHist_mean + h
-		
-		print("I(uHist_mean)=" + str(ip.I(x, uHist_mean, obs)))
-		print("I(uHist_mean + h)=" + str(ip.I(x, uplush, obs)))
-		print("I(uHist_mean) + DI(uHist_mean)(h)=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h)))
-		print("I(uHist_mean) + DI(uHist_mean)(h) + 1/2*D2I(uHist_mean)[h,h]=" + str(ip.I(x, uHist_mean, obs) + ip.DI(x, uHist_mean, obs, h) + 0.5*ip.D2I(x, uHist_mean, obs, h, h)))"""
-		
-		#h = u - uMAP
-		#h_modes = u_modes - uMAP_modes 
-		#Dfuh = DF_long(x, uMAP, g, pplus, pminus, h)
-		#D2fuh = D2F_long(x, uMAP, g, pplus, pminus, h, h)
-		uMAP = ip.find_uMAP(x, uHist_mean.fouriermodes, obs, maxIt = 200)
-		pMAP = ip.Ffnc(x, uMAP)
 		plt.figure(1)
 		plt.clf()
 		plt.ion()
