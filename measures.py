@@ -34,7 +34,7 @@ class GaussianFourier(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		modes = np.random.normal(0, 1, (len(self.mean),))*self.eigenvals
+		modes = np.random.normal(0, 1, (len(self.mean),))*np.sqrt(self.eigenvals)
 		#return modes
 		return moi.mapOnInterval("fourier", modes)
 	
@@ -42,6 +42,48 @@ class GaussianFourier(measure):
 		multiplicator = 1/self.eigenvals
 		multiplicator[0] = 1
 		return np.dot(u1.fouriermodes*multiplicator, u2.fouriermodes)
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+		
+	@property
+	def mean(self):
+		return self._mean
+	
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		return self
+
+class GaussianFourier2d(measure):
+	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
+	# N(mean, beta*(-Laplace)^(-alpha))
+	def __init__(self, mean, alpha, beta):
+		self._mean = mean
+		self.alpha = alpha
+		self.beta = beta
+		self.N = len(mean)
+		freqs = np.concatenate((np.array([0]), np.linspace(1, self.N//2, self.N//2), np.linspace(1, self.N//2, self.N//2)))
+		fX, fY = np.meshgrid(freqs, freqs)
+		evs = beta*(fX**2 + fY**2)**(-self.alpha)
+		evs [0,0] = 0
+		#freqs = beta*np.array([(k**(-2*alpha)) for k in np.linspace(1, self.N//2, self.N//2)])
+		self.eigenvals = evs
+	
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
+		modes = np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
+		#return modes
+		return moi.mapOnInterval("fourier", modes)
+	
+	def covInnerProd(self, u1, u2):
+		evs = self.eigenvals
+		evs[0] = 1
+		multiplicator = 1/evs
+		multiplicator[0] = 1
+		return np.sum((u1.fouriermodes*multiplicator*u2.fouriermodes)**2)
 	def normpart(self, u):
 		return 1.0/2*self.covInnerProd(u, u)
 	def norm(self, u):
@@ -222,7 +264,7 @@ class GeneralizedGaussianWavelet(measure): # like GaussianWavelet, but with scal
 if __name__ == "__main__":
 	import matplotlib.pyplot as plt
 	import haarWavelet as hW
-	s = 1
+	"""s = 1
 	ggw = GeneralizedGaussianWavelet(1, 0.7, 16)
 	ggw2 = GeneralizedGaussianWavelet(1, 1.3, 16)
 	ggw3 = GeneralizedGaussianWavelet(1, 1.8, 16)
@@ -242,7 +284,9 @@ if __name__ == "__main__":
 	xs = np.linspace(0, 1, 2**J, endpoint=False)
 	plt.plot(xs, w1.values)
 	plt.plot(xs, w2.values, 'r')
-	plt.plot(xs, w3.values, 'g')
+	plt.plot(xs, w3.values, 'g')"""
+	
+	gf2d = GaussianFourier2d(np.zeros((5,5)), 1, 1)
 	
 	
 	
