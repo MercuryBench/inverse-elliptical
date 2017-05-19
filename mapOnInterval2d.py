@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, pi
 import haarWavelet2d as hW
-from scipy.interpolate import SmoothBivariateSpline
+from scipy.interpolate import RectBivariateSpline
 import scipy
 
 """ This is a class modelling maps on the square [0,1]x[0,1]. There are four ways of defining a function: 
@@ -54,9 +54,9 @@ class mapOnInterval():
 	def values(self):
 		if self._values is None: # property not there yet, get from initialization data
 			if self.inittype == "fourier":
-				self._values = evalmodes(self.fouriermodes, np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
+				self._values = evalmodesGrid(self.fouriermodes, np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
 			elif self.inittype == "wavelet":
-				self._values = hW.waveletsynthesis2d(self.waveletcoeffs, np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
+				self._values = hW.waveletsynthesis2d(self.waveletcoeffs)
 			elif self.inittype == "handle":
 				x = np.linspace(0, 1, self.numSpatialPoints, endpoint=False)
 				X, Y = np.meshgrid(x, x)
@@ -101,16 +101,28 @@ class mapOnInterval():
 	def handle(self):
 		if self._handle is None:
 			if self.inittype == "expl":
-				self._handle = SmoothBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._interp = RectBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._handle = lambda x: self.evaluateInterp(self._interp, x)
 			elif self.inittype == "fourier":
 				self._handle = lambda x: evalmodes(self.fouriermodes, x)
 			elif self.inittype == "wavelet":
-				self._handle = SmoothBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._interp = RectBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._handle = lambda x: self.evaluateInterp(self._interp, x)
 			else:
 				raise Exception("Wrong value for self.inittype")
 			return self._handle
 		else:
 			return self._handle
+			
+	def evaluateInterp(self, interp, x):
+	 	assert (isinstance(x, np.ndarray))
+	 	if x.ndim == 2:
+	 		print("2 dimensions")
+	 		assert(x.shape[0] == 2)
+	 		return interp.ev(x[0,:], x[1,:])
+	 	else:
+	 		print("1 dimension")
+	 		return interp.ev(x[0], x[1])
 	
 	# overloading of basic arithmetic operations, in order to facilitate f + g, f*3 etc. for f,g mapOnInterval instances
 	def __add__(self, m):
@@ -218,8 +230,7 @@ def differentiate(x, f): # finite differences
 	fprime[1:] = (fncvals[1:]-fncvals[:-1])/(x[1]-x[0])
 	fprime[0] = fprime[1]
 	return mapOnInterval("expl", fprime)"""
-
-def evalmodes(modesmat, x):
+def evalmodesGrid(modesmat, x):
 	if not isinstance(x, np.ndarray):
 		x = np.array([[x]])
 	# evaluates fourier space decomposition in state space
@@ -255,6 +266,73 @@ def evalmodes(modesmat, x):
 	mm = np.tile(mm, (M, M, 1, 1))
 	temp = mm*phi_mat
 	return np.sum(temp, (2,3))
+
+def evalmodes(modesmat, x):
+	# input: x = np.array([x0, y0]) or
+	# 			x = np.array([[x0, x1, ... , xN],[y0, y1, ... , yN]])
+	
+	if x.ndim == 1:
+		N = modesmat.shape[0]
+		maxMode = N//2
+		freqs = np.reshape(np.linspace(1, maxMode, N/2), (-1, 1))
+		phi_mat = np.zeros((N, N))
+		for k in range(N):
+			for l in range(N):
+				if k == 0 and l == 0:
+					phi_mat[0, 0] = 1
+				elif k == 0 and l > 0 and l <= maxMode:
+					phi_mat[k, l] = np.cos(l*2*pi*x[0])
+				elif k == 0 and l > 0 and l > maxMode:
+					phi_mat[k, l] = np.sin((l-maxMode)*2*pi*x[0])
+				elif k > 0 and k <= maxMode and l == 0:
+					phi_mat[k, l] = np.cos(k*2*pi*x[1])
+				elif k > 0 and k > maxMode and l == 0:
+					phi_mat[k, l] = np.sin((k-maxMode)*2*pi*x[1])
+				elif k > 0 and l > 0:
+					if k <= maxMode and l <= maxMode:
+						phi_mat[k, l] = np.cos(k*2*pi*x[1])*np.cos(l*2*pi*x[0])
+					elif k <= maxMode and l > maxMode:
+						phi_mat[k, l] = np.cos(k*2*pi*x[1])*np.sin((l-maxMode)*2*pi*x[0])
+					elif k > maxMode and l <= maxMode:
+						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*x[1])*np.cos(l*2*pi*x[0])
+					else:
+						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*x[1])*np.sin((l-maxMode)*2*pi*x[0])
+		temp = modesmat*phi_mat
+		return np.sum(temp)
+	if x.ndim == 2:		
+		# evaluates fourier space decomposition in state space
+		N = modesmat.shape[0]
+		maxMode = N//2
+		freqs = np.reshape(np.linspace(1, maxMode, N/2), (-1, 1))
+		#x = np.reshape(x, (1, -1))
+		x = np.reshape(x, (2,-1))
+		M = x.shape[1]
+		phi_mat = np.zeros((M, N, N))
+		for k in range(N):
+			for l in range(N):
+				if k == 0 and l == 0:
+					phi_mat[:, 0, 0] = np.ones((M,))
+				elif k == 0 and l > 0 and l <= maxMode:
+					phi_mat[:, k, l] = np.cos(l*2*pi*x[0,:])
+				elif k == 0 and l > 0 and l > maxMode:
+					phi_mat[:, k, l] = np.sin((l-maxMode)*2*pi*x[0,:])
+				elif k > 0 and k <= maxMode and l == 0:
+					phi_mat[:, k, l] = np.cos(k*2*pi*x[1,:])
+				elif k > 0 and k > maxMode and l == 0:
+					phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*x[1,:])
+				elif k > 0 and l > 0:
+					if k <= maxMode and l <= maxMode:
+						phi_mat[:, k, l] = np.cos(k*2*pi*x[1,:])*np.cos(l*2*pi*x[0,:])
+					elif k <= maxMode and l > maxMode:
+						phi_mat[:, k, l] = np.cos(k*2*pi*x[1,:])*np.sin((l-maxMode)*2*pi*x[0,:])
+					elif k > maxMode and l <= maxMode:
+						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*x[1,:])*np.cos(l*2*pi*x[0,:])
+					else:
+						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*x[1,:])*np.sin((l-maxMode)*2*pi*x[0,:])
+		mm = np.reshape(modesmat, (1, N, N))
+		mm = np.tile(mm, (M, 1, 1))
+		temp = mm*phi_mat
+		return np.sum(temp, (1,2))
 	
 if __name__ == "__main__":
 	"""x = np.linspace(0, 1, 2**9, endpoint=False)
@@ -276,7 +354,7 @@ if __name__ == "__main__":
 	modesmat = np.random.uniform(-1, 1, (11,11))
 	J = 5
 	x = np.linspace(0, 1, 2**J)
-	f = evalmodes(modesmat, x)
+	f = evalmodesGrid(modesmat, x)
 	plt.imshow(f, interpolation='None')
 	plt.ion()
 	plt.show()
