@@ -124,6 +124,9 @@ class mapOnInterval():
 	 		print("1 dimension")
 	 		return interp.ev(x[0], x[1])
 	
+	def getX(self):
+		return np.linspace(0, 1, self.numSpatialPoints, endpoint=False)
+	
 	# overloading of basic arithmetic operations, in order to facilitate f + g, f*3 etc. for f,g mapOnInterval instances
 	def __add__(self, m):
 		if isinstance(m, mapOnInterval): # case f + g
