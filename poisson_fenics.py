@@ -11,6 +11,9 @@ from __future__ import print_function
 from fenics import *
 import measures as ms
 import numpy as np
+from math import exp
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
 
 # Create mesh and define function space
 mesh = UnitSquareMesh(16, 16)
@@ -30,17 +33,25 @@ class myKappa(Expression):
 			values[0] = 10
 		else:
 			values[0] = 1
-
 m = ms.GaussianFourier2d(np.zeros((31,)), 3, 0.5).sample()
+
+x = m.getX()
+X, Y = np.meshgrid(x, x)
 
 class myKappa2(Expression):
 	def eval(self, values, x):
-		values[0] = m.handle(x)
+		values[0] = exp(m.handle(x))
 
 #kappa = Expression('1', degree=2)
 kappa = myKappa2(degree=2)
 def boundary(x, on_boundary):
     return on_boundary
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+plt.ion()
+ax.plot_wireframe(X, Y, m.values)
+plt.show()
 
 bc = DirichletBC(V, u_D, boundary)
 
