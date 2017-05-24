@@ -75,6 +75,48 @@ class GaussianFourier2d(measure):
 		if not M == 1:
 			raise NotImplementedError()
 			return
+		modes = self._mean + np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
+		#return modes
+		return moi2d.mapOnInterval("fourier", modes)
+	
+	def covInnerProd(self, u1, u2):
+		evs = self.eigenvals
+		evs[0] = 1
+		multiplicator = 1/evs
+		multiplicator[0] = 1
+		return np.sum((u1.fouriermodes*multiplicator*u2.fouriermodes)**2)
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+		
+	@property
+	def mean(self):
+		return self._mean
+	
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		return self
+
+class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
+	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
+	# N(mean, beta*(-Laplace)^(-alpha))
+	def __init__(self, mean, alpha, beta):
+		self._mean = mean
+		self.alpha = alpha
+		self.beta = beta
+		self.N = len(mean)
+		freqs = np.concatenate((np.array([1]), np.linspace(1, self.N//2, self.N//2), np.linspace(1, self.N//2, self.N//2)))
+		fX, fY = np.meshgrid(freqs, freqs)
+		evs = beta*(fX**2 + fY**2)**(-self.alpha)
+		evs [0,0] = 0
+		#freqs = beta*np.array([(k**(-2*alpha)) for k in np.linspace(1, self.N//2, self.N//2)])
+		self.eigenvals = evs
+	
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
 		modes = np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
 		#return modes
 		return moi2d.mapOnInterval("fourier", modes)
