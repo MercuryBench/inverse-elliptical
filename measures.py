@@ -101,32 +101,40 @@ class GaussianFourier2d(measure):
 class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
 	# N(mean, beta*(-Laplace)^(-alpha))
-	def __init__(self, mean, alpha, beta):
-		self._mean = mean
-		self.alpha = alpha
-		self.beta = beta
-		self.N = len(mean)
-		freqs = np.concatenate((np.array([1]), np.linspace(1, self.N//2, self.N//2), np.linspace(1, self.N//2, self.N//2)))
-		fX, fY = np.meshgrid(freqs, freqs)
-		evs = beta*(fX**2 + fY**2)**(-self.alpha)
-		evs [0,0] = 0
-		#freqs = beta*np.array([(k**(-2*alpha)) for k in np.linspace(1, self.N//2, self.N//2)])
-		self.eigenvals = evs
+	def __init__(self, kappa, s, maxJ):
+		self.kappa = kappa
+		self.kappa_calc = kappa**(-0.5)
+		self.s = s
+		self.maxJ = maxJ
+		self.multiplier = np.array([2**(-j*self.s) for j in range(maxJ-1)])
 	
 	def sample(self, M=1):
 		if not M == 1:
 			raise NotImplementedError()
 			return
-		modes = np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
+		modes1 = [np.array([[0.0]])]
+		modes2 = ([[self.kappa_calc*self.multiplier[j]*np.random.normal(0, 1, (2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
+		modes = modes1 + modes2
+		#modes = np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
 		#return modes
-		return moi2d.mapOnInterval("fourier", modes)
+		return moi2d.mapOnInterval("wavelet", modes)
 	
-	def covInnerProd(self, u1, u2):
-		evs = self.eigenvals
-		evs[0] = 1
-		multiplicator = 1/evs
-		multiplicator[0] = 1
-		return np.sum((u1.fouriermodes*multiplicator*u2.fouriermodes)**2)
+	def covInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
+		return np.sum(j_besovprod)	
+	
+	def cumcovInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
+		return np.cumsum(j_besovprod)
+
 	def normpart(self, u):
 		return 1.0/2*self.covInnerProd(u, u)
 	def norm(self, u):
@@ -306,7 +314,7 @@ class GeneralizedGaussianWavelet(measure): # like GaussianWavelet, but with scal
 
 if __name__ == "__main__":
 	import matplotlib.pyplot as plt
-	import haarWavelet as hW
+	import haarWavelet2d as hW
 	"""s = 1
 	ggw = GeneralizedGaussianWavelet(1, 0.7, 16)
 	ggw2 = GeneralizedGaussianWavelet(1, 1.3, 16)
@@ -329,7 +337,7 @@ if __name__ == "__main__":
 	plt.plot(xs, w2.values, 'r')
 	plt.plot(xs, w3.values, 'g')"""
 	
-	gf2d = GaussianFourier2d(np.zeros((21,21)), 1, 1)
+	"""gf2d = GaussianFourier2d(np.zeros((21,21)), 1, 1)
 	gf2d = GaussianFourier2d(np.zeros((31,31)), 1.0, 0.5)
 	
 	fun = gf2d.sample()
@@ -338,12 +346,21 @@ if __name__ == "__main__":
 	plt.imshow(fun.values, interpolation='None')
 	plt.show()
 	
-	x = fun.getX()
-	X, Y = np.meshgrid(x, x)
+	"""
+	testfun = np.random.normal(0,1,(4,4))
+	ww = hW.waveletanalysis2d(testfun)
+	ggw2d = GeneralizedGaussianWavelet2d(1, 1.0, 8)
+	ggw2d2 = GeneralizedGaussianWavelet2d(1, 0.5, 8)
+	ggw2d3 = GeneralizedGaussianWavelet2d(1, 0.2, 8)
+	w = ggw2d.sample()
+	print(ggw2d.cumcovInnerProd(w, w))
+	print(ggw2d2.cumcovInnerProd(w, w))
+	print(ggw2d3.cumcovInnerProd(w, w))
 	fig = plt.figure()
-	ax = fig.add_subplot(111, projection='3d')
 	plt.ion()
-	ax.plot_wireframe(X, Y, fun.values)
-	
-	
+	ax = fig.add_subplot(111, projection='3d')
+	x = w.getX()
+	X, Y = np.meshgrid(x, x)
+	ax.plot_wireframe(X, Y, w.values)
+	plt.show()
 	
