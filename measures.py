@@ -64,7 +64,7 @@ class GaussianFourier2d(measure):
 		self.alpha = alpha
 		self.beta = beta
 		self.N = len(mean)
-		freqs = np.concatenate((np.array([0]), np.linspace(1, self.N//2, self.N//2), np.linspace(1, self.N//2, self.N//2)))
+		freqs = np.concatenate((np.array([1]), np.linspace(1, self.N//2, self.N//2), np.linspace(1, self.N//2, self.N//2)))
 		fX, fY = np.meshgrid(freqs, freqs)
 		evs = beta*(fX**2 + fY**2)**(-self.alpha)
 		evs [0,0] = 0
@@ -288,12 +288,20 @@ if __name__ == "__main__":
 	plt.plot(xs, w3.values, 'g')"""
 	
 	gf2d = GaussianFourier2d(np.zeros((21,21)), 1, 1)
+	gf2d = GaussianFourier2d(np.zeros((31,31)), 1.0, 0.5)
 	
 	fun = gf2d.sample()
 	plt.figure()
 	plt.ion()
 	plt.imshow(fun.values, interpolation='None')
 	plt.show()
+	
+	x = fun.getX()
+	X, Y = np.meshgrid(x, x)
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	plt.ion()
+	ax.plot_wireframe(X, Y, fun.values)
 	
 	
 	

@@ -25,6 +25,7 @@ class mapOnInterval():
 		self._waveletcoeffs = None
 		self.interpolationdegree = interpolationdegree
 		self._handle = None
+		self._memo = {}
 		self.inittype = inittype
 		self.numSpatialPoints = numSpatialPoints
 		
@@ -113,6 +114,11 @@ class mapOnInterval():
 			return self._handle
 		else:
 			return self._handle
+	
+	def handlememo(self, val):
+		assert(isinstance(val, np.ndarray))
+		assert(val.ndim == 1)
+		return self.handle(val)
 			
 	def evaluateInterp(self, interp, x):
 	 	assert (isinstance(x, np.ndarray))
@@ -353,7 +359,7 @@ if __name__ == "__main__":
 	
 	hW.plotApprox(x, (f1*f3).waveletcoeffs)
 	plt.show()"""
-	modesmat = np.array([[1,0,1],[1,0,0],[0,-1,0]])
+	"""modesmat = np.array([[1,0,1],[1,0,0],[0,-1,0]])
 	modesmat = np.random.uniform(-1, 1, (11,11))
 	J = 5
 	x = np.linspace(0, 1, 2**J)
@@ -367,4 +373,23 @@ if __name__ == "__main__":
 	plt.imshow(Z, interpolation='None')
 	
 	fun = mapOnInterval("fourier", modesmat)
+	
+	# test evaluation speed
+	pts = np.random.uniform(0, 1, (2, 10))"""
+	import measures as mm
+	import time
+	fun = mm.GaussianFourier2d(np.zeros((31,31)), 2., 0.5).sample()
+	N = 2000
+	pts = np.random.uniform(0, 1, (2, N))
+	val = np.zeros((N,))
+	start = time.time()
+	ptseval = fun.handle(pts)
+	end = time.time()
+	for k in range(N):
+		val[k] = fun.handle(pts[:, k])
+	end2 = time.time()
+	print(end-start)
+	print(end2-end)
+		
+	
 	
