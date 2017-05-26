@@ -1,11 +1,15 @@
 from __future__ import division
 import numpy as np
 import mapOnInterval as moi
+import mapOnInterval2d as moi2d
 import time
 from measures import  *
 from math import pi
 import matplotlib.pyplot as plt
 import scipy
+from fenics import *
+
+tol = 1E-14
 
 class linEllipt():
 	# model: -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
@@ -56,7 +60,33 @@ class linEllipt():
 		else:
 			return p
 
+class linEllipt2d():
+	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
+	def __init__(self, f, u_D, boundaryD, resol=4, xresol=7):
+		self.f = f
+		self.u_D = u_D
+		self.boundaryD = boundaryD
+		self.mesh = UnitSquareMesh(2**resol, 2**resol)
+		self.resol = resol
+		self.V = FunctionSpace(self.mesh, 'P', 1)
+		self.bc = DirichletBC(self.V, u_D, boundaryD)
+		self.xresol = 7
+
+
+	def solve(self, k):		
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		L = self.f*v*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		import time
+		start = time.time()
+		solve(a == L, uSol, self.bc)
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
+		return moi2d.mapOnInterval("expl", vals)
+
 if __name__ == "__main__":
+	if False: # 1d case
 		x = np.linspace(0, 1, 512)
 	
 		# boundary values for forward problem
@@ -114,3 +144,54 @@ if __name__ == "__main__":
 		et = time.time()
 		print(et-st)
 		plt.show()
+	else: #2d case
+		u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
+		
+		class myKappaTestbed(Expression): # more complicated topology
+			def eval(self, values, x):
+				if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
+					values[0] = 0.0001
+				elif x[0] <= 0.5+tol and x[0] >= 0.45 - tol and x[1] >= 0.6 - tol:
+					values[0] = 0.0001
+				elif x[0] <= 0.75 + tol and x[0] >= 0.7 - tol and x[1] >= 0.2 - tol and x[1] <= 0.8+tol:
+					values[0] = 100
+				else:
+					values[0] = 1
+
+		class fTestbed(Expression): # more complicated source and sink term
+			def eval(self, values, x):
+				if pow(x[0]-0.6, 2) + pow(x[1]-0.85, 2) <= 0.1*0.1:
+					values[0] = -20
+				elif pow(x[0]-0.2, 2) + pow(x[1]-0.75, 2) <= 0.1*0.1:
+					values[0] = 20
+				else:
+					values[0] = 0
+		
+		def boundary(x, on_boundary):
+			return on_boundary
+			
+		def boundaryD(x, on_boundary): # special Dirichlet boundary condition
+			if on_boundary:
+				if x[0] >= 0.6-tol and x[1] <= 0.5:
+					return True
+				elif x[0] <= tol: # obsolete
+					return True
+				else:
+					return False
+			else:
+				return False
+		f = fTestbed(degree = 2)
+		lE2d = linEllipt2d(f, u_D, boundaryD)
+		k = myKappaTestbed(degree = 2)
+		uSol = lE2d.solve(k)
+		
+		plt.contourf(uSol.values, 30)
+		plt.show()
+
+
+		
+		
+		
+		
+		
+		

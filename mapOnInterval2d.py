@@ -43,7 +43,7 @@ class mapOnInterval():
 			#self._values = hW.waveletsynthesis(self.waveletcoeffs)
 			#self.handle = InterpolatedUnivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), self.values, k=3, ext=3)
 		elif inittype == "handle":
-			self._handle = np.vectorize(param)
+			self._handle = param
 			#self._values = self.handle(np.linspace(0, 1, numSpatialPoints, endpoint=False))
 			#self.waveletcoeffs = hW.waveletanalysis(self.values)
 		else:
@@ -61,6 +61,7 @@ class mapOnInterval():
 			elif self.inittype == "handle":
 				x = np.linspace(0, 1, self.numSpatialPoints, endpoint=False)
 				X, Y = np.meshgrid(x, x)
+				
 				self._values = self.handle(X, Y)
 			else:
 				raise Exception("Wrong value for self.inittype")
@@ -108,7 +109,9 @@ class mapOnInterval():
 				self._handle = lambda x: evalmodes(self.fouriermodes, x)
 			elif self.inittype == "wavelet":
 				 self._interp = RectBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
-				 self._handle = lambda x: self.evaluateInterp(self._interp, x)
+				 #self._handle = lambda x: self.evaluateInterp(self._interp, x)
+				 # new version:
+				 self._handle = lambda x: self._interp.ev(x[0, :], x[1,:])
 			else:
 				raise Exception("Wrong value for self.inittype")
 			return self._handle

@@ -19,15 +19,15 @@ from mpl_toolkits.mplot3d import axes3d
 tol = 1E-14
 
 # Create mesh and define function space
-mesh = UnitSquareMesh(16, 16)
-V = FunctionSpace(mesh, 'P', 2)
+mesh = UnitSquareMesh(64, 64)
+V = FunctionSpace(mesh, 'P', 1)
 
 # Define boundary condition
-#u_D = Expression('(x[0] >= 0.6 && x[1] <= 0.5)? 2 : 0', degree=2)
 
 u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
+
 # Define permeability
-#kappa = Expression('x[0] <= 0.5 ? 10 : 1', degree=2)
+#kappa = Expression('x[0] <= 0.5 ? 10 : 1', degree=2) # simple two-stripe permeability
 
 class myKappa(Expression):
 	def eval(self, values, x):
@@ -38,14 +38,7 @@ class myKappa(Expression):
 		else:
 			values[0] = 1
 			
-class myKappa3(Expression):
-	def eval(self, values, x):
-		if (x[0]-0.5)*(x[0]-0.5) + (x[1]-0.5)*(x[1]-0.5) <= 0.3:
-			values[0] = 10
-		else:
-			values[0] = 1
-			
-class myKappaTestbed(Expression):
+class myKappaTestbed(Expression): # more complicated topology
 	def eval(self, values, x):
 		if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
 			values[0] = 0.0001
@@ -56,7 +49,7 @@ class myKappaTestbed(Expression):
 		else:
 			values[0] = 1
 
-class fTestbed(Expression):
+class fTestbed(Expression): # more complicated source and sink term
 	def eval(self, values, x):
 		if pow(x[0]-0.6, 2) + pow(x[1]-0.85, 2) <= 0.1*0.1:
 			values[0] = -20
@@ -65,24 +58,35 @@ class fTestbed(Expression):
 		else:
 			values[0] = 0
 
+# sample log permeability
 m = ms.GaussianFourier2d(np.zeros((21,21)), 2., 2).sample()
-mfd = MeshFunctionDouble(mesh, 0)
+m1 = ms.GeneralizedGaussianWavelet2d(1, 1.0, 8).sample()
 
+# coords of mesh vertices
 coords = mesh.coordinates().T
-vals = np.exp(m.handle(coords))
-mfd.set_values(vals)
-x = m.getX()
-X, Y = np.meshgrid(x, x)
 
+# evaluate permeability in vertices
+vals = np.exp(m1.handle(coords))
+
+kappa = Function(V)
+
+
+# fill permeability function with values using Miguel's dof juggling
+kappa.vector().set_local(vals[dof_to_vertex_map(V)])
+
+# alternative: brute force Expression (not recommended)
 class myKappaGaussianFourier(Expression):
 	def eval(self, values, x):
 		values[0] = exp(m.handle(x))
+class myKappaGaussianWavelet2d(Expression):
+	def eval(self, values, x):
+		values[0] = exp(m1.handle(x))
+
 
 #kappa = Expression('1', degree=2)
 #kappa = myKappaTestbed(degree=2) #for debugging/ground truth purposes
-kappa = myKappaGaussianFourier(degree = 2)
-#kappa = Expression("a", a=mfd, degree=1) # experimental
-kappa.mfd = mfd
+#kappa = myKappaGaussianFourier(degree = 2) # non-recommended old version
+#kappa = myKappaGaussianWavelet2d(degree=2)
 def boundaryD(x, on_boundary): # special Dirichlet boundary condition
 	if on_boundary:
 		if x[0] >= 0.6-tol and x[1] <= 0.5:
@@ -98,11 +102,21 @@ def boundaryD(x, on_boundary): # special Dirichlet boundary condition
 def boundary(x, on_boundary):
 	return on_boundary
 
+# plot permeability
+x = m1.getX()
+X, Y = np.meshgrid(x, x)
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 plt.ion()
-ax.plot_wireframe(X, Y, m.values)
+ax.plot_wireframe(X, Y, np.exp(m1.values))
 plt.show()
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+plt.ion()
+ax.plot_wireframe(X, Y, np.exp(m.values))
+plt.show()
+
 
 bc = DirichletBC(V, u_D, boundaryD)
 
@@ -111,28 +125,28 @@ u = TrialFunction(V)
 v = TestFunction(V)
 f = fTestbed(degree = 2)
 #f = Expression('100*exp(-pow(x[0]-0.2, 2) - pow(x[1]-0.75,2))', degree=2)
-a = kappa*dot(grad(u), grad(v))*dx
 L = f*v*dx
 
+a = kappa*dot(grad(u), grad(v))*dx
 # Compute solution
-u = Function(V)
-solve(a == L, u, bc)
+uSol = Function(V)
+solve(a == L, uSol, bc)
 
 # Plot solution and mesh
-plot(u)
+plot(uSol)
 plot(mesh)
 #plot(kappa)
 
 # Save solution to file in VTK format
 vtkfile = File('poisson/solution.pvd')
-vtkfile << u
+vtkfile << uSol
 
 # Compute error in L2 norm
-error_L2 = errornorm(u_D, u, 'L2')
+error_L2 = errornorm(u_D, uSol, 'L2')
 
 # Compute maximum error at vertices
 vertex_values_u_D = u_D.compute_vertex_values(mesh)
-vertex_values_u = u.compute_vertex_values(mesh)
+vertex_values_u = uSol.compute_vertex_values(mesh)
 import numpy as np
 error_max = np.max(np.abs(vertex_values_u_D - vertex_values_u))
 
