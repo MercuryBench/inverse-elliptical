@@ -27,7 +27,7 @@ class inverseProblem():
 		coords = self.fwd.mesh.coordinates().T
 
 		# evaluate permeability in vertices
-		vals = np.exp(logkappa.handle(coords))
+		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
 
 		kappa = Function(self.fwd.V)
 		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 			else:
 				values[0] = 0"""
 	
-	def myUTruth(x):
+	def myUTruth(x, y):
 		"""if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
 			return -4
 		elif x[0] <= 0.5+tol and x[0] >= 0.45 - tol and x[1] >= 0.6 - tol:
@@ -155,12 +155,12 @@ if __name__ == "__main__":
 			return 2
 		else:
 			return 0"""
-		if x.ndim == 1 and x.shape[0] == 2:
-			return  -4/log10(e)*np.logical_or(np.logical_and(np.logical_and(x[0] <= 0.5 +tol, x[0] >= 0.45 - tol), x[1] <= 0.5+tol), np.logical_and(np.logical_and( x[0] <= 0.5+tol , x[0] >= 0.45 - tol) , x[1] >= 0.6 - tol)) + 2/log10(e)*np.logical_and(np.logical_and(x[0] <= 0.75 + tol, x[0] >= 0.7 - tol), np.logical_and(x[1] >= 0.2 - tol, x[1] <= 0.8+tol)) + 0
-		elif x.ndim == 2:
-			return -4/log10(e)*np.logical_or(np.logical_and(np.logical_and(x[0, :] <= 0.5 +tol, x[0, :] >= 0.45 - tol), x[1, :] <= 0.5+tol), np.logical_and(np.logical_and( x[0, :] <= 0.5+tol , x[0, :] >= 0.45 - tol) , x[1, :] >= 0.6 - tol)) + 2/log10(e)*np.logical_and(np.logical_and(x[0, :] <= 0.75 + tol, x[0, :] >= 0.7 - tol), np.logical_and(x[1, :] >= 0.2 - tol, x[1, :] <= 0.8+tol)) + 0
-		else: 
-			raise NotImplementedError("wrong input")
+		#if x.ndim == 1 and x.shape[0] == 2:
+		return  -4/log10(e)*np.logical_or(np.logical_and(np.logical_and(x <= 0.5 +tol, x >= 0.45 - tol), y <= 0.5+tol), np.logical_and(np.logical_and( x<= 0.5+tol , x >= 0.45 - tol) ,y >= 0.6 - tol)) + 2/log10(e)*np.logical_and(np.logical_and(x <= 0.75 + tol, x >= 0.7 - tol), np.logical_and(y >= 0.2 - tol, y <= 0.8+tol)) + 0
+		#elif x.ndim == 2:
+		#	return -4/log10(e)*np.logical_or(np.logical_and(np.logical_and(x[0, :] <= 0.5 +tol, x[0, :] >= 0.45 - tol), x[1, :] <= 0.5+tol), np.logical_and(np.logical_and( x[0, :] <= 0.5+tol , x[0, :] >= 0.45 - tol) , x[1, :] >= 0.6 - tol)) + 2/log10(e)*np.logical_and(np.logical_and(x[0, :] <= 0.75 + tol, x[0, :] >= 0.7 - tol), np.logical_and(x[1, :] >= 0.2 - tol, x[1, :] <= 0.8+tol)) + 0
+		#else: 
+		#	raise NotImplementedError("wrong input")
 	
 	
 
@@ -210,6 +210,12 @@ if __name__ == "__main__":
 	x = np.linspace(0, 1, 65)
 	X, Y = np.meshgrid(x, x)
 	ax.plot_wireframe(X, Y, sol.values)
+	
+	obs = sol.values[obsind] + np.random.normal(0, gamma, (len(obsind_raw)**2,))
+	invProb.obs = obs
+	ax.scatter(x[obsind[1]], x[obsind[0]], obs, s=20, c="red")
+	
+	
 	fig = plt.figure()
 	kappavals = np.zeros((len(x), len(x)))
 	for k in range(len(x)):
@@ -217,15 +223,11 @@ if __name__ == "__main__":
 			kappavals[k,l] = log10(kappa([X[k,l],Y[k,l]]))
 	plt.contourf(X, Y, kappavals)
 	plt.colorbar()
-	fig = plt.figure()
+	"""fig = plt.figure()
 	ax2 = fig.add_subplot(111, projection='3d')
 	x = np.linspace(0, 1, 128)
 	X, Y = np.meshgrid(x, x)
-	# errors!!! # ax.plot_wireframe(X, Y, u.values)
-	
-	obs = sol.values[obsind] + np.random.normal(0, gamma, (len(obsind_raw)**2,))
-	invProb.obs = obs
-	ax.scatter(x[obsind[1]], x[obsind[0]], obs, s=20, c="red")
+	ax2.plot_wireframe(X, Y, u.values)"""
 	
 	u1 = prior.sample()
 	plt.figure()
@@ -246,7 +248,7 @@ if __name__ == "__main__":
 	utruthApprox = np.zeros((M,M))
 	for l in range(M):
 		for k in range(M):
-			utruthApprox[k,l] = myUTruth(np.array([XA[k,l], YA[k,l]]))
+			utruthApprox[k,l] = myUTruth(XA[k,l], YA[k,l])
 	
 	wc = waveletanalysis2d(utruthApprox)
 	
@@ -265,5 +267,12 @@ if __name__ == "__main__":
 	x = np.linspace(0, 1, 65)
 	X, Y = np.meshgrid(x, x)
 	ax.plot_wireframe(X, Y, sol2.values)
+	
+	u3 = moi2d.mapOnInterval("handle", lambda x, y: 0*x)
+	sol3 = invProb.Ffnc(u3)
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	ax.plot_wireframe(X, Y, sol3.values)
+	
 	
 	

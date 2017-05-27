@@ -232,7 +232,7 @@ if __name__ == "__main__":
 	X = np.linspace(-5, 5, J)
 	Y = np.linspace(-5, 5, J)
 	X, Y = np.meshgrid(X, Y)
-	R = np.sqrt(X**2 + Y**2)
+	R = np.sqrt(X**4 + Y**2)
 	Z = np.sin(R)
 	
 	hwa = waveletanalysis2d(Z)
