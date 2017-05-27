@@ -37,7 +37,7 @@ class mapOnInterval():
 			self._fouriermodes = param # odd cardinality!!
 			#self._values = evalmodes(self.fouriermodes, np.linspace(0, 1, numSpatialPoints, endpoint=False))
 			#self._waveletcoeffs = hW.waveletanalysis(self.values)
-			self._handle = lambda x: evalmodes(self.fouriermodes, x)
+			self._handle = lambda x, y: evalmodes(self.fouriermodes, x, y)
 		elif inittype == "wavelet": # no Fourier expansion!
 			self._waveletcoeffs = param
 			#self._values = hW.waveletsynthesis(self.waveletcoeffs)
@@ -106,7 +106,7 @@ class mapOnInterval():
 				 self._interp = RectBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 self._handle = lambda x, y: self.evaluateInterp(self._interp, x, y)
 			elif self.inittype == "fourier":
-				self._handle = lambda x: evalmodes(self.fouriermodes, x)
+				self._handle = lambda x, y: evalmodes(self.fouriermodes, x, y)
 			elif self.inittype == "wavelet":
 				 self._interp = RectBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 #self._handle = lambda x: self.evaluateInterp(self._interp, x)
@@ -280,11 +280,11 @@ def evalmodesGrid(modesmat, x):
 	temp = mm*phi_mat
 	return np.sum(temp, (2,3))
 
-def evalmodes(modesmat, x):
-	# input: x = np.array([x0, y0]) or
-	# 			x = np.array([[x0, x1, ... , xN],[y0, y1, ... , yN]])
+def evalmodes(modesmat, x, y):
+	# input: x, y = x0, y0 or
+	# 			x, y = np.array([x0, x1, ... , xM]), np.array([y0, y1, ... , yM])
 	
-	if x.ndim == 1:
+	if (isinstance(x, (int, float)) or (isinstance(x, np.ndarray) and len(x) == 1)):
 		N = modesmat.shape[0]
 		maxMode = N//2
 		freqs = np.reshape(np.linspace(1, maxMode, N/2), (-1, 1))
@@ -294,54 +294,53 @@ def evalmodes(modesmat, x):
 				if k == 0 and l == 0:
 					phi_mat[0, 0] = 1
 				elif k == 0 and l > 0 and l <= maxMode:
-					phi_mat[k, l] = np.cos(l*2*pi*x[0])
+					phi_mat[k, l] = np.cos(l*2*pi*x)
 				elif k == 0 and l > 0 and l > maxMode:
-					phi_mat[k, l] = np.sin((l-maxMode)*2*pi*x[0])
+					phi_mat[k, l] = np.sin((l-maxMode)*2*pi*x)
 				elif k > 0 and k <= maxMode and l == 0:
-					phi_mat[k, l] = np.cos(k*2*pi*x[1])
+					phi_mat[k, l] = np.cos(k*2*pi*y)
 				elif k > 0 and k > maxMode and l == 0:
-					phi_mat[k, l] = np.sin((k-maxMode)*2*pi*x[1])
+					phi_mat[k, l] = np.sin((k-maxMode)*2*pi*y)
 				elif k > 0 and l > 0:
 					if k <= maxMode and l <= maxMode:
-						phi_mat[k, l] = np.cos(k*2*pi*x[1])*np.cos(l*2*pi*x[0])
+						phi_mat[k, l] = np.cos(k*2*pi*y)*np.cos(l*2*pi*x)
 					elif k <= maxMode and l > maxMode:
-						phi_mat[k, l] = np.cos(k*2*pi*x[1])*np.sin((l-maxMode)*2*pi*x[0])
+						phi_mat[k, l] = np.cos(k*2*pi*y)*np.sin((l-maxMode)*2*pi*x)
 					elif k > maxMode and l <= maxMode:
-						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*x[1])*np.cos(l*2*pi*x[0])
+						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*y)*np.cos(l*2*pi*x)
 					else:
-						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*x[1])*np.sin((l-maxMode)*2*pi*x[0])
+						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*y)*np.sin((l-maxMode)*2*pi*x)
 		temp = modesmat*phi_mat
 		return np.sum(temp)
-	if x.ndim == 2:		
+	else:		
 		# evaluates fourier space decomposition in state space
 		N = modesmat.shape[0]
 		maxMode = N//2
 		freqs = np.reshape(np.linspace(1, maxMode, N/2), (-1, 1))
 		#x = np.reshape(x, (1, -1))
-		x = np.reshape(x, (2,-1))
-		M = x.shape[1]
+		M = x.shape[0]
 		phi_mat = np.zeros((M, N, N))
 		for k in range(N):
 			for l in range(N):
 				if k == 0 and l == 0:
 					phi_mat[:, 0, 0] = np.ones((M,))
 				elif k == 0 and l > 0 and l <= maxMode:
-					phi_mat[:, k, l] = np.cos(l*2*pi*x[0,:])
+					phi_mat[:, k, l] = np.cos(l*2*pi*x)
 				elif k == 0 and l > 0 and l > maxMode:
-					phi_mat[:, k, l] = np.sin((l-maxMode)*2*pi*x[0,:])
+					phi_mat[:, k, l] = np.sin((l-maxMode)*2*pi*x)
 				elif k > 0 and k <= maxMode and l == 0:
-					phi_mat[:, k, l] = np.cos(k*2*pi*x[1,:])
+					phi_mat[:, k, l] = np.cos(k*2*pi*y)
 				elif k > 0 and k > maxMode and l == 0:
-					phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*x[1,:])
+					phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*y)
 				elif k > 0 and l > 0:
 					if k <= maxMode and l <= maxMode:
-						phi_mat[:, k, l] = np.cos(k*2*pi*x[1,:])*np.cos(l*2*pi*x[0,:])
+						phi_mat[:, k, l] = np.cos(k*2*pi*y)*np.cos(l*2*pi*x)
 					elif k <= maxMode and l > maxMode:
-						phi_mat[:, k, l] = np.cos(k*2*pi*x[1,:])*np.sin((l-maxMode)*2*pi*x[0,:])
+						phi_mat[:, k, l] = np.cos(k*2*pi*y)*np.sin((l-maxMode)*2*pi*x)
 					elif k > maxMode and l <= maxMode:
-						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*x[1,:])*np.cos(l*2*pi*x[0,:])
+						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*y)*np.cos(l*2*pi*x)
 					else:
-						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*x[1,:])*np.sin((l-maxMode)*2*pi*x[0,:])
+						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*y)*np.sin((l-maxMode)*2*pi*x)
 		mm = np.reshape(modesmat, (1, N, N))
 		mm = np.tile(mm, (M, 1, 1))
 		temp = mm*phi_mat
@@ -387,10 +386,10 @@ if __name__ == "__main__":
 	pts = np.random.uniform(0, 1, (2, N))
 	val = np.zeros((N,))
 	start = time.time()
-	ptseval = fun.handle(pts)
+	ptseval = fun.handle(pts[0, :], pts[1, :])
 	end = time.time()
-	for k in range(N):
-		val[k] = fun.handle(pts[:, k])
+	#for k in range(N):
+	#	val[k] = fun.handle(pts[:, k])
 	end2 = time.time()
 	print(end-start)
 	print(end2-end)
