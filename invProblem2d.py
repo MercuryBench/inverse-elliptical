@@ -29,6 +29,12 @@ class MinimizeStopper(object):
         else:
             # you might want to report other stuff here
             print("Elapsed: %.3f sec" % elapsed)
+class callbackKeepTrack(object):
+	def __init__(self, writeTo):
+		self.writeTo = writeTo
+	def __call__(self, xk):
+		print("Was called")
+		self.writeTo.append(xk)
 
 class inverseProblem():
 	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
@@ -386,7 +392,7 @@ if __name__ == "__main__":
 	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
 	resol = 6
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol, xresol=7)
-	prior = GeneralizedGaussianWavelet2d(1, 1.0, 8)
+	prior = GeneralizedGaussianWavelet2d(1, 1.0, resol)
 	prior2 = GaussianFourier2d(np.zeros((11,11)), 1, 1)
 	obsind_raw = np.arange(1, 2**resol-1, 6)
 	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
@@ -425,7 +431,7 @@ if __name__ == "__main__":
 	#for k in range(len(x)):
 	#	for l in range(len(x)):
 	#		kappavals[k,l] = log10(kappa([X[k,l],Y[k,l]]))
-	x = np.linspace(0, 1, 128)
+	x = np.linspace(0, 1, u.values.shape[0])
 	XX, YY = np.meshgrid(x, x)
 	plt.contourf(XX, YY, u.values)
 	plt.colorbar()
@@ -473,13 +479,17 @@ if __name__ == "__main__":
 		return packed
 	
 	def costFnc_wavelet(u_modes_unpacked):
-		return invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked)), obs)
-	
+		return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked)), obs))
+	listEv = []	
+	cKT = callbackKeepTrack(listEv)
 	#res = scipy.optimize.minimize(costFnc, u0.fouriermodes.reshape((-1,)), method='Nelder-Mead', options={'disp': True, 'maxiter': 10})
 	#res = scipy.optimize.minimize(costFnc_wavelet, unpackWavelet(u0.waveletcoeffs), method='Nelder-Mead', options={'disp': True, 'maxiter': 10})
 	#uOpt = moi2d.mapOnInterval("fourier", res.x.reshape((N_modes, N_modes)))
 	
 	uhf, PhiHist = invProb.randomwalk(u0, obs, 0.1, 100, printDiagnostic=True, returnFull=True, customPrior=False)
+	
+	uLast = uhf[-1]
+	invProb.plotSolAndLogPermeability(uLast)
 	
 	
 	

@@ -104,7 +104,7 @@ class mapOnInterval():
 		if self._handle is None:
 			if self.inittype == "expl":
 				 self._interp = RectBivariateSpline(np.linspace(0, 1, len(self.values), endpoint=False), np.linspace(0, 1, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
-				 self._handle = lambda x, y: self.evaluateInterp(self._interp, x, y)
+				 self._handle = lambda x, y: self._interp.ev(y, x)
 			elif self.inittype == "fourier":
 				self._handle = lambda x, y: evalmodes(self.fouriermodes, x, y)
 			elif self.inittype == "wavelet":
