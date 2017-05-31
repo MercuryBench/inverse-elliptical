@@ -241,12 +241,12 @@ if __name__ == "__main__":
 			
 	f = fTestbed(degree = 2)
 	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
-	resol = 5
-	J = 2
+	resol = 6
+	J = 5
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol)
-	prior = GeneralizedGaussianWavelet2d(0.8, 0.1, J, resol=resol)
+	prior = GeneralizedGaussianWavelet2d(0.0001, 0.0, J, resol=resol)
 	prior2 = GaussianFourier2d(np.zeros((11,11)), 1, 1)
-	obsind_raw = np.arange(0, 2**resol-1, 2)
+	obsind_raw = np.arange(0, 2**resol, 8)
 	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
 	obsind = [ind1.flatten(), ind2.flatten()]
 	gamma = 0.01
@@ -341,14 +341,16 @@ if __name__ == "__main__":
 	
 	#uLast = uhf[-1]
 	#invProb.plotSolAndLogPermeability(uLast)
-	
-	#res = scipy.optimize.minimize(costFnc_wavelet, unpackWavelet(u0.waveletcoeffs), method='Nelder-Mead', options={'disp': True, 'maxiter': 1000})
-	#uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
-	#invProb.plotSolAndLogPermeability(uOpt)
+	numCoeffs = len(unpackWavelet(u0.waveletcoeffs))
+	import time
+	start = time.time()
+	res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), method='Nelder-Mead', options={'disp': True})
+	end = time.time()
+	print("Took " + str(end-start) + " seconds")
+	uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
+	invProb.plotSolAndLogPermeability(uOpt)
 	#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
-	from scipy.optimize import brute
-	ranges = tuple(slice(-8,8,1.0) for j in range(len(unpackWavelet(u0.waveletcoeffs))))
-	brute(costFnc_wavelet, ranges)
+	
 	
 	
 	

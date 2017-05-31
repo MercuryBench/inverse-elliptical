@@ -133,7 +133,7 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 		for j in range(1, self.maxJ):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
-		return np.sum(j_besovprod)	
+		return self.kappa*np.sum(j_besovprod)	
 	
 	def cumcovInnerProd(self, w1, w2):
 		j_besovprod = np.zeros((self.maxJ,))
@@ -141,7 +141,7 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 		for j in range(1, self.maxJ):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
-		return np.cumsum(j_besovprod)
+		return self.kappa*np.cumsum(j_besovprod)
 
 	def normpart(self, u):
 		return 1.0/2*self.covInnerProd(u, u)
@@ -357,18 +357,18 @@ if __name__ == "__main__":
 	"""
 	testfun = np.random.normal(0,1,(4,4))
 	ww = hW.waveletanalysis2d(testfun)
-	ggw2d = GeneralizedGaussianWavelet2d(1, 1.0, 8)
-	ggw2d2 = GeneralizedGaussianWavelet2d(1, 0.5, 8)
-	ggw2d3 = GeneralizedGaussianWavelet2d(1, 0.2, 8)
+	ggw2d = GeneralizedGaussianWavelet2d(0.1, 1.5, 8)
+	ggw2d2 = GeneralizedGaussianWavelet2d(0.1, 0.5, 8)
+	ggw2d3 = GeneralizedGaussianWavelet2d(0.1, 0.2, 8)
 	w = ggw2d.sample()
 	print(ggw2d.cumcovInnerProd(w, w))
 	print(ggw2d2.cumcovInnerProd(w, w))
 	print(ggw2d3.cumcovInnerProd(w, w))
-	fig = plt.figure()
-	plt.ion()
-	ax = fig.add_subplot(111, projection='3d')
+	#fig = plt.figure()
+	#plt.ion()
+	#ax = fig.add_subplot(111, projection='3d')
 	x = w.getX()
 	X, Y = np.meshgrid(x, x)
-	ax.plot_wireframe(X, Y, w.values)
-	plt.show()
+	#ax.plot_wireframe(X, Y, w.values)
+	#plt.show()
 	
