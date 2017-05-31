@@ -56,13 +56,13 @@ def waveletanalysis2d(f):
 	assert (J == int(log(f.shape[0], 2)))
 	for j in range(J):
 		a_last = a[-1]
-		temp1 = (a_last[0::2, :] + a_last[1::2, :])/2
-		a.append((temp1[:, 0::2] + temp1[:, 1::2])/2)
+		temp1 = (a_last[0::2, :] + a_last[1::2, :])
+		a.append((temp1[:, 0::2] + temp1[:, 1::2]))
 		
-		temp2 = (a_last[0::2, :] - a_last[1::2, :])/2
-		d1 = (temp2[:, 0::2] + temp2[:, 1::2])/2
-		d2 = (temp1[:, 0::2] - temp1[:, 1::2])/2
-		d3 = (temp2[:, 0::2] - temp2[:, 1::2])/2
+		temp2 = (a_last[0::2, :] - a_last[1::2, :])
+		d1 = (temp2[:, 0::2] + temp2[:, 1::2])
+		d2 = (temp1[:, 0::2] - temp1[:, 1::2])
+		d3 = (temp2[:, 0::2] - temp2[:, 1::2])
 		d.append([d1,d2,d3])
 	w = [a[-1]]
 	for j in range(J):
@@ -112,16 +112,16 @@ def waveletsynthesis2d(w, resol=None):
 		for k in range(maxK):
 			for l in range(maxL):
 				psivec1 = np.zeros((2**J, 2**J))
-				psivec1[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l:2**(J-j+1)*(l+1)] = 1
-				psivec1[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*(l+1)] = -1
+				psivec1[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l:2**(J-j+1)*(l+1)] = 2**(-j)
+				psivec1[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*(l+1)] = -2**(-j)
 				psivec2 = np.zeros((2**J, 2**J))
-				psivec2[2**(J-j+1)*k:2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = 1
-				psivec2[2**(J-j+1)*k:2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = -1
+				psivec2[2**(J-j+1)*k:2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = 2**(-j)
+				psivec2[2**(J-j+1)*k:2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = -2**(-j)
 				psivec3 = np.zeros((2**J, 2**J))
-				psivec3[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = 1
-				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = -1
-				psivec3[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = -1
-				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = 1
+				psivec3[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = 2**(-j)
+				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = -2**(-j)
+				psivec3[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = -2**(-j)
+				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = 2**(-j)
 				f = f + w_hori[k,l]*psivec1 + w_vert[k, l]*psivec2 + w_diag[k,l]*psivec3
 	return f
 			
