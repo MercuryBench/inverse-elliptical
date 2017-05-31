@@ -101,11 +101,15 @@ class GaussianFourier2d(measure):
 class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
 	# N(mean, beta*(-Laplace)^(-alpha))
-	def __init__(self, kappa, s, maxJ):
+	def __init__(self, kappa, s, maxJ, resol=None):
 		self.kappa = kappa
 		self.kappa_calc = kappa**(-0.5)
 		self.s = s
 		self.maxJ = maxJ
+		if resol is None:
+			self.resol = maxJ
+		else:
+			self.resol = resol
 		self.multiplier = np.array([2**(-j*self.s) for j in range(maxJ-1)])
 	
 	def sample(self, M=1):
@@ -114,10 +118,14 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 			return
 		modes1 = [np.array([[0.0]])]
 		modes2 = ([[self.kappa_calc*self.multiplier[j]*np.random.normal(0, 1, (2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
-		modes = modes1 + modes2
+		#modesrest = [[np.zeros((2**j, 2**j)) for m in range(3)] for j in range(self.maxJ, self.resol-1)]
+		
+		modes = modes1 + modes2# + modesrest
 		#modes = np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
 		#return modes
-		return moi2d.mapOnInterval("wavelet", modes)
+		u = moi2d.mapOnInterval("wavelet", modes)
+		u.resol = self.resol
+		return u
 	
 	def covInnerProd(self, w1, w2):
 		j_besovprod = np.zeros((self.maxJ,))

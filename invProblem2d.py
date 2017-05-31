@@ -153,6 +153,7 @@ class inverseProblem():
 		xx = np.linspace(0, 1, N2)
 		XX, YY = np.meshgrid(xx, xx)
 		plt.contourf(XX, YY, u.values)
+		plt.colorbar()
 		plt.show()
 
 def plot3d(u):
@@ -161,7 +162,7 @@ def plot3d(u):
 	N2 = u.values.shape[0]
 	xx = np.linspace(0, 1, N2)
 	XX, YY = np.meshgrid(xx, xx)
-	ax.plot_surface(XX, YY, u.values)
+	ax.plot_wireframe(XX, YY, u.values)
 	plt.show()
 def plot3dtrisurf(u):
 	fig = plt.figure()
@@ -239,25 +240,26 @@ if __name__ == "__main__":
 			
 	f = fTestbed(degree = 2)
 	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
-	resol = 4
+	resol = 6
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol)
-	prior = GeneralizedGaussianWavelet2d(1, 1.0, resol)
+	prior = GeneralizedGaussianWavelet2d(0.5, 0.1, 3, resol=resol)
 	prior2 = GaussianFourier2d(np.zeros((11,11)), 1, 1)
-	obsind_raw = np.arange(1, 2**resol-1, 6)
+	obsind_raw = np.arange(0, 2**resol-1, 2)
 	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
 	obsind = [ind1.flatten(), ind2.flatten()]
 	gamma = 0.01
 	
 	# Test inverse problem for Fourier prior
-	#invProb = inverseProblem(fwd, prior2, gamma, obsind=obsind)
+	invProb2 = inverseProblem(fwd, prior2, gamma, obsind=obsind)
 	
 	invProb = inverseProblem(fwd, prior, gamma, obsind=obsind)
 	
 	# ground truth solution
 	kappa = myKappaTestbed(degree=2)
 	u = moi2d.mapOnInterval("handle", myUTruth)
+	u.numSpatialPoints = 2**resol
 	#u = prior2.sample()
-	u = prior.sample()
+	#u = prior.sample()
 	#plt.figure()
 	sol = invProb.Ffnc(u)
 	#plt.contourf(sol.values, 40)
@@ -333,13 +335,14 @@ if __name__ == "__main__":
 	
 	#uOpt = moi2d.mapOnInterval("fourier", res.x.reshape((N_modes, N_modes)))
 	
-	#uhf = invProb.randomwalk(u0, obs, 0.1, 100, printDiagnostic=True, returnFull=False, customPrior=False)
+	#uhf, C = invProb.randomwalk(u0, obs, 0.1, 100, printDiagnostic=True, returnFull=True, customPrior=False)
 	
 	#uLast = uhf[-1]
 	#invProb.plotSolAndLogPermeability(uLast)
 	
 	#res = scipy.optimize.minimize(costFnc_wavelet, unpackWavelet(u0.waveletcoeffs), method='Nelder-Mead', options={'disp': True, 'maxiter': 1000})
 	#uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x))
+	#invProb.plotSolAndLogPermeability(uOpt)
 	#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
 	
 	

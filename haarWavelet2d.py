@@ -98,8 +98,11 @@ def waveletsynthesis(w,xs=None):
 		#return f/2**(J/2)"""
 	return f
 
-def waveletsynthesis2d(w):
-	J = len(w) - 1
+def waveletsynthesis2d(w, resol=None):
+	if resol is None:
+		J = len(w) - 1
+	else:
+		J = max(resol, len(w) - 1)
 	f = np.zeros((2**J, 2**J))+ w[0]
 	for j in range(1, len(w)):
 		w_hori = w[j][0] # is quadratic
@@ -186,7 +189,7 @@ def plotApprox(x, w):
 
 
 if __name__ == "__main__":
-	J = 9
+	"""J = 9
 	num = 2**J
 	x = np.linspace(0, 1, 2**(J), endpoint=False)
 	gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
@@ -212,7 +215,7 @@ if __name__ == "__main__":
 	plt.ion()
 	plt.plot(x, f)
 	plt.plot(x, ff,'r')
-	plt.show()
+	plt.show()"""
 	"""
 	plt.ion()
 	plt.plot(x, f)
@@ -228,7 +231,7 @@ if __name__ == "__main__":
 	plt.ion()
 	#A = np.random.normal(0, 1, (16,16))
 	
-	J = 2**6
+	"""J = 2**6
 	X = np.linspace(-5, 5, J)
 	Y = np.linspace(-5, 5, J)
 	X, Y = np.meshgrid(X, Y)
@@ -246,6 +249,8 @@ if __name__ == "__main__":
 	plt.imshow(Z, cmap=plt.cm.coolwarm, vmin = np.min(recon[-1]), vmax = np.max(recon[-1]), interpolation='none')
 	for k in range(1, len(hwa)):
 		plt.subplot(M, M, k+1)
-		plt.imshow(recon[k], cmap=plt.cm.coolwarm, vmin = np.min(recon[-1]), vmax = np.max(recon[-1]), interpolation='none')
-
+		plt.imshow(recon[k], cmap=plt.cm.coolwarm, vmin = np.min(recon[-1]), vmax = np.max(recon[-1]), interpolation='none')"""
+	w = [np.array([1]), [np.array([[0.2]]), np.array([[-0.2]]), np.array([[0.5]])], [np.random.normal(0, 0.01, (2,2)), np.random.normal(0, 0.01, (2,2)), np.random.normal(0, 0.01, (2,2))]]
+	f = waveletsynthesis2d(w)
+	f2 = waveletsynthesis2d(w, resol=3)
 

@@ -28,6 +28,7 @@ class mapOnInterval():
 		self._memo = {}
 		self.inittype = inittype
 		self.numSpatialPoints = numSpatialPoints
+		self.resol = None
 		
 		if inittype == "expl": # no Fourier expansion!
 			self._values = param
@@ -57,7 +58,7 @@ class mapOnInterval():
 			if self.inittype == "fourier":
 				self._values = evalmodesGrid(self.fouriermodes, np.linspace(0, 1, self.numSpatialPoints, endpoint=False))
 			elif self.inittype == "wavelet":
-				self._values = hW.waveletsynthesis2d(self.waveletcoeffs)
+				self._values = hW.waveletsynthesis2d(self.waveletcoeffs, resol=self.resol)
 			elif self.inittype == "handle":
 				x = np.linspace(0, 1, self.numSpatialPoints, endpoint=False)
 				X, Y = np.meshgrid(x, x)
@@ -381,7 +382,7 @@ if __name__ == "__main__":
 	pts = np.random.uniform(0, 1, (2, 10))"""
 	import measures as mm
 	import time
-	fun = mm.GaussianFourier2d(np.zeros((31,31)), 2., 0.5).sample()
+	"""fun = mm.GaussianFourier2d(np.zeros((31,31)), 2., 0.5).sample()
 	N = 2000
 	pts = np.random.uniform(0, 1, (2, N))
 	val = np.zeros((N,))
@@ -392,7 +393,9 @@ if __name__ == "__main__":
 	#	val[k] = fun.handle(pts[:, k])
 	end2 = time.time()
 	print(end-start)
-	print(end2-end)
+	print(end2-end)"""
+	fun = mm.GeneralizedGaussianWavelet2d(1.0, 1.0, 3, resol = 6).sample()
+	
 		
 	
 	
