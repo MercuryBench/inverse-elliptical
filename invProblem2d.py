@@ -13,13 +13,14 @@ import scipy.optimize
 from fenics import *
 
 class inverseProblem():
-	def __init__(self, fwd, prior, gamma, obsind=None, obs=None):
+	def __init__(self, fwd, prior, gamma, obsind=None, obs=None, resol=None):
 		# need: type(fwd) == fwdProblem, type(prior) == measure
 		self.fwd = fwd
 		self.prior = prior
 		self.obsind = obsind
 		self.obs = obs
 		self.gamma = gamma
+		self.resol = resol
 		
 	# Forward operators and their derivatives:	
 	def Ffnc(self, logkappa): # F is like forward, but uses logpermeability instead of permeability
@@ -114,7 +115,7 @@ class inverseProblem():
 					temp2 = sqrt(1-2*delta)*uwc[1] + sqrt(2*delta)*step[n][1]
 					temp3 = sqrt(1-2*delta)*uwc[2] + sqrt(2*delta)*step[n][2]
 					v_coeffs.append([temp1, temp2, temp3])
-				v = moi2d.mapOnInterval("wavelet", v_coeffs)
+				v = moi2d.mapOnInterval("wavelet", v_coeffs, resol=self.resol)
 				v1 = Phi_val
 				v2 = self.Phi(v, obs)
 				if v1 - v2 > 1:
@@ -240,9 +241,10 @@ if __name__ == "__main__":
 			
 	f = fTestbed(degree = 2)
 	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
-	resol = 6
+	resol = 5
+	J = 2
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol)
-	prior = GeneralizedGaussianWavelet2d(0.5, 0.1, 3, resol=resol)
+	prior = GeneralizedGaussianWavelet2d(0.8, 0.1, J, resol=resol)
 	prior2 = GaussianFourier2d(np.zeros((11,11)), 1, 1)
 	obsind_raw = np.arange(0, 2**resol-1, 2)
 	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
@@ -252,7 +254,7 @@ if __name__ == "__main__":
 	# Test inverse problem for Fourier prior
 	invProb2 = inverseProblem(fwd, prior2, gamma, obsind=obsind)
 	
-	invProb = inverseProblem(fwd, prior, gamma, obsind=obsind)
+	invProb = inverseProblem(fwd, prior, gamma, obsind=obsind, resol=resol)
 	
 	# ground truth solution
 	kappa = myKappaTestbed(degree=2)
@@ -311,7 +313,7 @@ if __name__ == "__main__":
 	
 	def unpackWavelet(waco):
 		J = len(waco)
-		unpacked = np.zeros((2**(2*J),))
+		unpacked = np.zeros((2**(2*(J-1)),)) ##### !!!!!
 		unpacked[0] = waco[0][0,0]
 		for j in range(1, J):
 			unpacked[2**(2*j-2):2**(2*j)] = np.concatenate((waco[j][0].flatten(), waco[j][1].flatten(), waco[j][2].flatten()))
@@ -319,7 +321,7 @@ if __name__ == "__main__":
 	
 	def packWavelet(vector):
 		packed = [np.array([[vector[0]]])]
-		J = int(log10(len(vector))/(2*log10(2)))
+		J = int(log10(len(vector))/(2*log10(2)))+1
 		for j in range(1, J):
 			temp1 = np.reshape(vector[2**(2*j-2):2**(2*j-1)], (2**(j-1), 2**(j-1)))
 			temp2 = np.reshape(vector[2**(2*j-1):2**(2*j-1)+2**(2*j-2)], (2**(j-1), 2**(j-1)))
@@ -328,7 +330,7 @@ if __name__ == "__main__":
 		return packed
 	
 	def costFnc_wavelet(u_modes_unpacked):
-		return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked)), obs))
+		return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked), resol=resol), obs))
 	
 	
 	#res = scipy.optimize.minimize(costFnc, u0.fouriermodes.reshape((-1,)), method='Nelder-Mead', options={'disp': True, 'maxiter': 10})
@@ -341,10 +343,12 @@ if __name__ == "__main__":
 	#invProb.plotSolAndLogPermeability(uLast)
 	
 	#res = scipy.optimize.minimize(costFnc_wavelet, unpackWavelet(u0.waveletcoeffs), method='Nelder-Mead', options={'disp': True, 'maxiter': 1000})
-	#uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x))
+	#uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
 	#invProb.plotSolAndLogPermeability(uOpt)
 	#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
-	
+	from scipy.optimize import brute
+	ranges = tuple(slice(-8,8,1.0) for j in range(len(unpackWavelet(u0.waveletcoeffs))))
+	brute(costFnc_wavelet, ranges)
 	
 	
 	

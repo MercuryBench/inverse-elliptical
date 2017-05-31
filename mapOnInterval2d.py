@@ -15,7 +15,7 @@ import scipy
 """
 
 class mapOnInterval():
-	def __init__(self, inittype, param, numSpatialPoints=2**7, interpolationdegree=3):
+	def __init__(self, inittype, param, numSpatialPoints=2**7, interpolationdegree=3, resol=None):
 		# there are three possibilities of initializing a mapOnInterval instance:
 		# 1) By explicit values on a discretization: inittype == "expl"
 		# 2) By Fourier expansion: inittype == "fourier"
@@ -28,7 +28,7 @@ class mapOnInterval():
 		self._memo = {}
 		self.inittype = inittype
 		self.numSpatialPoints = numSpatialPoints
-		self.resol = None
+		self.resol = resol
 		
 		if inittype == "expl": # no Fourier expansion!
 			self._values = param
