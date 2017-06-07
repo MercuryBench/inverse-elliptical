@@ -56,13 +56,13 @@ def waveletanalysis2d(f):
 	assert (J == int(log(f.shape[0], 2)))
 	for j in range(J):
 		a_last = a[-1]
-		temp1 = (a_last[0::2, :] + a_last[1::2, :])
-		a.append((temp1[:, 0::2] + temp1[:, 1::2]))
+		temp1 = (a_last[0::2, :] + a_last[1::2, :])/2
+		a.append((temp1[:, 0::2] + temp1[:, 1::2])/2)
 		
-		temp2 = (a_last[0::2, :] - a_last[1::2, :])
-		d1 = (temp2[:, 0::2] + temp2[:, 1::2])
-		d2 = (temp1[:, 0::2] - temp1[:, 1::2])
-		d3 = (temp2[:, 0::2] - temp2[:, 1::2])
+		temp2 = (a_last[0::2, :] - a_last[1::2, :])/2
+		d1 = (temp2[:, 0::2] + temp2[:, 1::2])/2*(2**(J-j))
+		d2 = (temp1[:, 0::2] - temp1[:, 1::2])/2*(2**(J-j))
+		d3 = (temp2[:, 0::2] - temp2[:, 1::2])/2*(2**(J-j))
 		d.append([d1,d2,d3])
 	w = [a[-1]]
 	for j in range(J):

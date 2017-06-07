@@ -27,8 +27,10 @@ class mapOnInterval():
 		self._handle = None
 		self._memo = {}
 		self.inittype = inittype
-		self.numSpatialPoints = numSpatialPoints
 		self.resol = resol
+		self.numSpatialPoints = numSpatialPoints
+		if resol is not None:
+			self.numSpatialPoints = 2**resol
 		
 		if inittype == "expl": # no Fourier expansion!
 			self._values = param
@@ -211,6 +213,17 @@ class mapOnInterval():
 		raise Exception("use f * 1/number for f/number")
 	def __truediv__(self, m):
 		return self.__div__(m)
+
+def divergence(f):
+		vals = f.values
+		dx = 1.0/f.numSpatialPoints
+		diffs1 = np.zeros(f.values.shape)
+		diffs2 = np.zeros(f.values.shape)
+		diffs1[:, 1:] = (vals[:, 1:]-vals[:, 0:-1])/dx
+		diffs1[:, 0] = diffs1[:, 1]
+		diffs2[1:, :] = (vals[1:, :]-vals[0:-1, :])/dx
+		diffs2[0, :] = diffs2[1, :]
+		return diffs1, diffs2
 			
 
 

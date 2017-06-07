@@ -23,19 +23,34 @@ class inverseProblem():
 		self.resol = resol
 		
 	# Forward operators and their derivatives:	
-	def Ffnc(self, logkappa): # F is like forward, but uses logpermeability instead of permeability
+	def Ffnc(self, logkappa, rhs=None): # F is like forward, but uses logpermeability instead of permeability
 		# coords of mesh vertices
-		coords = self.fwd.mesh.coordinates().T
+		if rhs is None:
+			coords = self.fwd.mesh.coordinates().T
 
-		# evaluate permeability in vertices
-		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
+			# evaluate permeability in vertices
+			vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
 
-		kappa = Function(self.fwd.V)
-		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
-		ret = self.fwd.solve(kappa)
+			kappa = Function(self.fwd.V)
+			kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
+			ret = self.fwd.solve(kappa)
 		
-		return ret
-
+			return ret
+		else:
+			raise NotImplementedError("link to fwd still missing")
+	
+	def DFfnc(self, logkappa, h, y=None):
+		assert h.inittype == "wavelet"
+		if y is None:
+			y = self.Ffnc(logkappa)
+		divy1, divy2 = moi2d.divergence(y)
+		temp1 = h.values*np.exp(logkappa.values)*divy1
+		temp2 = h.values*np.exp(logkappa.values)*divy2
+		divx1, _ = moi2d.divergence(temp1)
+		_, divx2 = moi2d.divergence(temp2)
+		rhs = moi2d.mapOnInterval("expl", divx1 + divx2)
+		return self.Ffnc(logkappa, rhs)
+		
 	
 	
 	def Gfnc(self, u, Fu=None):
@@ -216,12 +231,24 @@ if __name__ == "__main__":
 		#	return -4/log10(e)*np.logical_or(np.logical_and(np.logical_and(x[0, :] <= 0.5 +tol, x[0, :] >= 0.45 - tol), x[1, :] <= 0.5+tol), np.logical_and(np.logical_and( x[0, :] <= 0.5+tol , x[0, :] >= 0.45 - tol) , x[1, :] >= 0.6 - tol)) + 2/log10(e)*np.logical_and(np.logical_and(x[0, :] <= 0.75 + tol, x[0, :] >= 0.7 - tol), np.logical_and(x[1, :] >= 0.2 - tol, x[1, :] <= 0.8+tol)) + 0
 		#else: 
 		#	raise NotImplementedError("wrong input")
+	def myUTruth2(x, y):
+		return -5.0/log10(e) * np.logical_and(np.logical_and(x <= 0.6, x >= 0.4), np.logical_or(y >= 0.6, y <= 0.3))  +3
 	
-	
+	def myUTruth3(x,y):
+		return 1 - 4.0*np.logical_and(np.logical_and(x >= 0.3, x <= 0.8), y <= 0.6)
 
 	class fTestbed(Expression): # more complicated source and sink term
 		def eval(self, values, x):
 			if pow(x[0]-0.6, 2) + pow(x[1]-0.85, 2) <= 0.1*0.1:
+				values[0] = -20
+			elif pow(x[0]-0.2, 2) + pow(x[1]-0.75, 2) <= 0.1*0.1:
+				values[0] = 20
+			else:
+				values[0] = 0
+				
+	class fTestbed2(Expression): # more complicated source and sink term
+		def eval(self, values, x):
+			if pow(x[0]-0.8, 2) + pow(x[1]-0.85, 2) <= 0.1*0.1:
 				values[0] = -20
 			elif pow(x[0]-0.2, 2) + pow(x[1]-0.75, 2) <= 0.1*0.1:
 				values[0] = 20
@@ -240,27 +267,28 @@ if __name__ == "__main__":
 			return False
 			
 	f = fTestbed(degree = 2)
-	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
-	resol = 6
-	J = 5
+	#f = Expression('0*x[0]', degree=2)
+	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 2 : 0', degree=2)
+	resol = 5
+	J = 4
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol)
-	prior = GeneralizedGaussianWavelet2d(0.0001, 0.0, J, resol=resol)
-	prior2 = GaussianFourier2d(np.zeros((11,11)), 1, 1)
-	obsind_raw = np.arange(0, 2**resol, 8)
+	prior = GeneralizedGaussianWavelet2d(0.1, 0.0, J, resol=resol) # was 1.0, 1.0 before!
+	#prior = GaussianFourier2d(np.zeros((5,5)), 1, 1)
+	obsind_raw = np.arange(1, 2**resol, 2)
 	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
 	obsind = [ind1.flatten(), ind2.flatten()]
 	gamma = 0.01
 	
 	# Test inverse problem for Fourier prior
-	invProb2 = inverseProblem(fwd, prior2, gamma, obsind=obsind)
+	#invProb = inverseProblem(fwd, prior, gamma, obsind=obsind)
 	
 	invProb = inverseProblem(fwd, prior, gamma, obsind=obsind, resol=resol)
 	
 	# ground truth solution
 	kappa = myKappaTestbed(degree=2)
-	u = moi2d.mapOnInterval("handle", myUTruth)
-	u.numSpatialPoints = 2**resol
-	#u = prior2.sample()
+	#u = moi2d.mapOnInterval("handle", myUTruth)
+	u = moi2d.mapOnInterval("handle", myUTruth3); u.numSpatialPoints = 2**resol
+	#u = prior.sample()
 	#u = prior.sample()
 	#plt.figure()
 	sol = invProb.Ffnc(u)
@@ -296,21 +324,6 @@ if __name__ == "__main__":
 	x = np.linspace(0, 1, 128)
 	X, Y = np.meshgrid(x, x)
 	ax2.plot_wireframe(X, Y, u.values)"""
-	
-	u0 = prior.sample()
-	print("utruth Phi: " + str(invProb.Phi(u, obs)))
-	print("u0 Phi: " + str(invProb.Phi(u0, obs)))
-	print("utruth I: " + str(invProb.I(u, obs)))
-	print("u0 I: " + str(invProb.I(u0, obs)))
-	sol0 = invProb.Ffnc(u0)
-	invProb.plotSolAndLogPermeability(u0, sol0)
-	
-	N_modes = prior2.N
-	
-	def costFnc(u_modes_unpacked):
-		return invProb.I(moi2d.mapOnInterval("fourier", u_modes_unpacked.reshape((N_modes, N_modes))), obs)
-	
-	
 	def unpackWavelet(waco):
 		J = len(waco)
 		unpacked = np.zeros((2**(2*(J-1)),)) ##### !!!!!
@@ -329,27 +342,72 @@ if __name__ == "__main__":
 			packed.append([temp1, temp2, temp3])
 		return packed
 	
-	def costFnc_wavelet(u_modes_unpacked):
-		return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked), resol=resol), obs))
 	
 	
-	#res = scipy.optimize.minimize(costFnc, u0.fouriermodes.reshape((-1,)), method='Nelder-Mead', options={'disp': True, 'maxiter': 10})
+
 	
-	#uOpt = moi2d.mapOnInterval("fourier", res.x.reshape((N_modes, N_modes)))
+	if len(sys.argv) > 1:
+		pkl_file = open(sys.argv[1], 'rb')
+
+		data = pickle.load(pkl_file)
+		if "u_waveletcoeffs" in data.keys():	# wavelet case
+			u = moi2d.mapOnInterval("wavelet", data["u_waveletcoeffs"], resol=data["resol"])
+			uOpt = moi2d.mapOnInterval("wavelet", data["uOpt_waveletcoeffs"], resol=data["resol"])
+			resol = data["resol"]
+			obsind = data["obsind"]
+			gamma = data["gamma"]
+			obs = data["obs"]
+			
+		else: # fourier case
+			u = moi2d.mapOnInterval("fourier", data["u_modes"], resol=data["resol"])
+			uOpt = moi2d.mapOnInterval("fourier", data["uOpt_modes"], resol=data["resol"])
+			resol = data["resol"]
+			obsind = data["obsind"]
+			gamma = data["gamma"]
+			obs = data["obs"]
+	else:
+		u0 = prior.sample()
+		u0 = moi2d.mapOnInterval("wavelet", packWavelet(np.zeros((len(unpackWavelet(u0.waveletcoeffs)),))))
 	
-	#uhf, C = invProb.randomwalk(u0, obs, 0.1, 100, printDiagnostic=True, returnFull=True, customPrior=False)
+		print("utruth Phi: " + str(invProb.Phi(u, obs)))
+		print("u0 Phi: " + str(invProb.Phi(u0, obs)))
+		print("utruth I: " + str(invProb.I(u, obs)))
+		print("u0 I: " + str(invProb.I(u0, obs)))
+		sol0 = invProb.Ffnc(u0)
+		invProb.plotSolAndLogPermeability(u0, sol0)
 	
-	#uLast = uhf[-1]
-	#invProb.plotSolAndLogPermeability(uLast)
-	numCoeffs = len(unpackWavelet(u0.waveletcoeffs))
-	import time
-	start = time.time()
-	res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), method='Nelder-Mead', options={'disp': True})
-	end = time.time()
-	print("Took " + str(end-start) + " seconds")
-	uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
-	invProb.plotSolAndLogPermeability(uOpt)
-	#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
+		#N_modes = prior.N
+	
+		def costFnc(u_modes_unpacked):
+			return invProb.I(moi2d.mapOnInterval("fourier", u_modes_unpacked.reshape((N_modes, N_modes)), resol=resol), obs)
+	
+		def costFnc_wavelet(u_modes_unpacked):
+			return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked), resol=resol), obs))
+			#uhf, C = invProb.randomwalk(u0, obs, 0.1, 100, printDiagnostic=True, returnFull=True, customPrior=False)
+	
+		#uLast = uhf[-1]
+		#invProb.plotSolAndLogPermeability(uLast)
+		numCoeffs = len(unpackWavelet(u0.waveletcoeffs))
+		import time
+		start = time.time()
+		#res = scipy.optimize.minimize(costFnc, np.zeros((N_modes,N_modes)), method='Nelder-Mead', options={'disp': True, 'maxiter': 1000})
+		res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), method='Nelder-Mead', options={'disp': True, 'maxiter': 5000})
+		end = time.time()
+		#uOpt = moi2d.mapOnInterval("fourier", np.reshape(res.x, (N_modes,N_modes)))
+		uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
+
+		print("Took " + str(end-start) + " seconds")
+		print(str(res.nit) + " iterations")
+		print(str(res.nfev) + " function evaluations")
+		print("Reduction of function value from " + str(invProb.I(u0, obs)) + " to " + str(invProb.I(uOpt, obs)))
+		print("Optimum is " + str(invProb.I(u, obs)))
+	
+		invProb.plotSolAndLogPermeability(uOpt)
+		#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
+		#data = {'u_waveletcoeffs': u.waveletcoeffs, 'uOpt_waveletcoeffs': uOpt.waveletcoeffs,'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
+		#data = {'u_modes': u.fouriermodes, 'uOpt_modes': uOpt.fouriermodes, 'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
+		#output = open('data.pkl', 'wb')
+		#pickle.dump(data, output)
 	
 	
 	

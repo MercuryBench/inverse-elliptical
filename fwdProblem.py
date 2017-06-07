@@ -73,10 +73,21 @@ class linEllipt2d():
 		self.xresol = 7
 
 
-	def solve(self, k):		
+	def solve(self, k, rhs=None):	
+		set_log_level(40)
 		u = TrialFunction(self.V)
 		v = TestFunction(self.V)
-		L = self.f*v*dx
+		if rhs is None:	
+			L = self.f*v*dx
+		else:
+			coords = self.mesh.coordinates().T
+
+			# evaluate permeability in vertices
+			vals = np.exp(rhs.handle(coords[0, :], coords[1, :]))
+
+			f = Function(self.fwd.V)
+			f.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
+			L = f*v*dx			
 		a = k*dot(grad(u), grad(v))*dx
 		uSol = Function(self.V)
 		import time
