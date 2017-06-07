@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin, cos, pi, sqrt, log, pi
+from math import sin, cos, pi, sqrt, log, pi, log10
 import haarWavelet2d as hW
 from scipy.interpolate import RectBivariateSpline
 import scipy
@@ -13,6 +13,25 @@ import scipy
 		-> by function handle
 	Missing information is calculated from the defining parameter (fourier is the exception so far)
 """
+
+
+def unpackWavelet(waco):
+	J = len(waco)
+	unpacked = np.zeros((2**(2*(J-1)),)) ##### !!!!!
+	unpacked[0] = waco[0][0,0]
+	for j in range(1, J):
+		unpacked[2**(2*j-2):2**(2*j)] = np.concatenate((waco[j][0].flatten(), waco[j][1].flatten(), waco[j][2].flatten()))
+	return unpacked
+
+def packWavelet(vector):
+	packed = [np.array([[vector[0]]])]
+	J = int(log10(len(vector))/(2*log10(2)))+1
+	for j in range(1, J):
+		temp1 = np.reshape(vector[2**(2*j-2):2**(2*j-1)], (2**(j-1), 2**(j-1)))
+		temp2 = np.reshape(vector[2**(2*j-1):2**(2*j-1)+2**(2*j-2)], (2**(j-1), 2**(j-1)))
+		temp3 = np.reshape(vector[2**(2*j-1)+2**(2*j-2):2**(2*j)], (2**(j-1), 2**(j-1)))
+		packed.append([temp1, temp2, temp3])
+	return packed
 
 class mapOnInterval():
 	def __init__(self, inittype, param, numSpatialPoints=2**7, interpolationdegree=3, resol=None):
@@ -152,7 +171,7 @@ class mapOnInterval():
 				return mapOnInterval("expl", self.values + m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
-					return mapOnInterval("wavelet", [w1 + w2 for w1, w2 in zip(self.waveletcoeffs, m.waveletcoeffs)])
+					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)), resol=self.resol)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnInterval("handle", lambda x: self.handle(x) + m.handle(x))
@@ -175,7 +194,7 @@ class mapOnInterval():
 				return mapOnInterval("expl", self.values - m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
-					return mapOnInterval("wavelet", [w1 - w2 for w1, w2 in zip(self.waveletcoeffs, m.waveletcoeffs)])
+					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)-unpackWavelet(m.waveletcoeffs)), resol=self.resol)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnInterval("handle", lambda x: self.handle(x) - m.handle(x))
@@ -204,7 +223,7 @@ class mapOnInterval():
 			if self.inittype == "handle":
 				return mapOnInterval("handle", lambda x: self.handle(x) * m)
 			elif self.inittype == "wavelet":
-				return mapOnInterval("wavelet", [w1 * m for w1 in self.waveletcoeffs])
+				return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)*m))
 			elif self.inittype == "fourier":
 				return mapOnInterval("fourier", [fm * m for fm in self.fouriermodes])
 			else:

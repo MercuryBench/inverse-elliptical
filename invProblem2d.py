@@ -23,35 +23,65 @@ class inverseProblem():
 		self.resol = resol
 		
 	# Forward operators and their derivatives:	
-	def Ffnc(self, logkappa, rhs=None): # F is like forward, but uses logpermeability instead of permeability
+	def Ffnc(self, logkappa, pureFenicsOutput=False): # F is like forward, but uses logpermeability instead of permeability
 		# coords of mesh vertices
-		if rhs is None:
-			coords = self.fwd.mesh.coordinates().T
+		coords = self.fwd.mesh.coordinates().T
 
-			# evaluate permeability in vertices
-			vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
+		# evaluate permeability in vertices
+		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
 
-			kappa = Function(self.fwd.V)
-			kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
-			ret = self.fwd.solve(kappa)
+		kappa = Function(self.fwd.V)
+		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
+		ret = self.fwd.solve(kappa, pureFenicsOutput=pureFenicsOutput)
 		
-			return ret
-		else:
-			raise NotImplementedError("link to fwd still missing")
+		return ret
 	
-	def DFfnc(self, logkappa, h, y=None):
+	def DFfnc(self, logkappa, h, y=None): # y is probably not used right here
 		assert h.inittype == "wavelet"
 		if y is None:
-			y = self.Ffnc(logkappa)
-		divy1, divy2 = moi2d.divergence(y)
+			y = self.Ffnc(logkappa, pureFenicsOutput=True)
+		coords = self.fwd.mesh.coordinates().T
+
+		# evaluate permeability in vertices
+		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
+		vals1 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h.handle(coords[0, :], coords[1, :])
+		
+		kappa = Function(self.fwd.V)
+		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
+		kappa1 = Function(self.fwd.V)
+		kappa1.vector().set_local(vals1[dof_to_vertex_map(self.fwd.V)])
+		
+		
+		"""divy1, divy2 = moi2d.divergence(y)
 		temp1 = h.values*np.exp(logkappa.values)*divy1
 		temp2 = h.values*np.exp(logkappa.values)*divy2
 		divx1, _ = moi2d.divergence(temp1)
 		_, divx2 = moi2d.divergence(temp2)
-		rhs = moi2d.mapOnInterval("expl", divx1 + divx2)
-		return self.Ffnc(logkappa, rhs)
-		
+		rhs = moi2d.mapOnInterval("expl", divx1 + divx2)"""
+		return self.fwd.solveWithHminus1RHS(kappa, kappa1, y)
 	
+	def D2Ffnc(self, logkappa, h1, h2): # funktioniert noch nicht!
+		y = self.Ffnc(logkappa, pureFenicsOutput=True)
+		coords = self.fwd.mesh.coordinates().T
+		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
+		vals1 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h1.handle(coords[0, :], coords[1, :])
+		vals2 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h2.handle(coords[0, :], coords[1, :])
+		vals12 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h1.handle(coords[0, :], coords[1, :])*h2.handle(coords[0, :], coords[1, :])
+		
+		kappa = Function(self.fwd.V)
+		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
+		kappa1 = Function(self.fwd.V)
+		kappa1.vector().set_local(vals1[dof_to_vertex_map(self.fwd.V)])
+		kappa2 = Function(self.fwd.V)
+		kappa2.vector().set_local(vals2[dof_to_vertex_map(self.fwd.V)])
+		kappa12 = Function(self.fwd.V)
+		kappa12.vector().set_local(vals12[dof_to_vertex_map(self.fwd.V)])
+		
+		y1prime = self.fwd.solveWithHminus1RHS(kappa, kappa1, y, pureFenicsOutput=True)
+		y2prime = self.fwd.solveWithHminus1RHS(kappa, kappa2, y, pureFenicsOutput=True)
+		y2primeprime = self.fwd.solveWithHminus1RHS(kappa, kappa12, y)
+		y1primeprime = self.fwd.solveWithHminus1RHS_variant(kappa, kappa1, y1prime, kappa2, y2prime)
+		return y1primeprime+y2primeprime
 	
 	def Gfnc(self, u, Fu=None):
 		if self.obsind == None:
@@ -62,6 +92,10 @@ class inverseProblem():
 			p = Fu
 		obs = p.values[self.obsind[0], self.obsind[1]]
 		return obs
+		
+	def DGfnc(self, u, h):
+		Dp = self.DFfnc(u, h)
+		return Dp.values[self.obsind[0], self.obsind[1]]
 		
 	
 	def Phi(self, u, obs, Fu=None):
@@ -272,7 +306,7 @@ if __name__ == "__main__":
 	resol = 5
 	J = 4
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol)
-	prior = GeneralizedGaussianWavelet2d(0.1, 0.0, J, resol=resol) # was 1.0, 1.0 before!
+	prior = GeneralizedGaussianWavelet2d(1.0, 0.0, J, resol=resol) # was 1.0, 1.0 before!
 	#prior = GaussianFourier2d(np.zeros((5,5)), 1, 1)
 	obsind_raw = np.arange(1, 2**resol, 2)
 	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
@@ -346,7 +380,7 @@ if __name__ == "__main__":
 	
 
 	
-	if len(sys.argv) > 1:
+	if len(sys.argv) > 1 and not sys.argv[1] == "D":
 		pkl_file = open(sys.argv[1], 'rb')
 
 		data = pickle.load(pkl_file)
@@ -365,6 +399,71 @@ if __name__ == "__main__":
 			obsind = data["obsind"]
 			gamma = data["gamma"]
 			obs = data["obs"]
+	elif len(sys.argv) > 1 and sys.argv[1] == "D":
+		u0 = prior.sample()
+		v0 = prior.sample()
+		h = (v0-u0)*0.1
+		v = u0 + h
+		Fu0 = invProb.Ffnc(u0)
+		Fv = invProb.Ffnc(v)
+		#invProb.plotSolAndLogPermeability(u0, sol=Fu0)
+		#invProb.plotSolAndLogPermeability(v, sol=Fv)
+		DFu0 = invProb.DFfnc(u0, h)
+		D2Fu0 = invProb.D2Ffnc(u0, h, h)
+		approx1 = Fu0 + DFu0
+		approx2 = Fu0 + DFu0 + D2Fu0*0.5
+		
+		plt.figure()
+		plt.subplot(4,1,1)
+		plt.contourf(Fu0.values)
+		plt.colorbar()
+		plt.subplot(4,1,2)
+		plt.contourf(approx1.values)
+		plt.colorbar()
+		plt.subplot(4,1,3)
+		plt.contourf(approx2.values)
+		plt.colorbar()
+		plt.subplot(4,1,4)
+		plt.contourf(Fv.values)
+		plt.colorbar()
+		
+		bottom1 = np.min(Fv.values - Fu0.values)
+		bottom2 = np.min(Fv.values - approx1.values)
+		bottom3 = np.min(Fv.values - approx2.values)
+		bottom = min(bottom1,bottom2,bottom3)
+		top1 = np.max(Fv.values - Fu0.values)
+		top2 = np.max(Fv.values - approx1.values)
+		top3 = np.max(Fv.values - approx2.values)
+		top = max(bottom1,bottom2,bottom3)
+		plt.figure()
+		plt.subplot(3,1,1)
+		plt.contourf(Fv.values - Fu0.values)
+		plt.clim(bottom, top);
+		plt.colorbar()
+		plt.subplot(3,1,2)
+		plt.contourf(Fv.values - approx1.values)
+		plt.clim(bottom, top);
+		plt.colorbar()
+		plt.subplot(3,1,3)
+		plt.contourf(Fv.values - approx2.values)
+		plt.clim(bottom, top);
+		plt.colorbar()
+		
+		print(np.sum((Fv.values - Fu0.values)**2))
+		print(np.sum((Fv.values - approx1.values)**2))
+		print(np.sum((Fv.values - approx2.values)**2))
+		
+		
+		"""Fu0 = invProb.Ffnc(u0)
+		Fv0 = invProb.Ffnc(v0)
+		wu0 = unpackWavelet(u0.waveletcoeffs)
+		wv0 = unpackWavelet(v0.waveletcoeffs)
+		wh = packWavelet(wu0-wv0)
+		h = moi2d.mapOnInterval("wavelet", wh)
+		Du0 = invProb.DFfnc(u0, h)
+		recon = moi2d.mapOnInterval("expl", Fu0.values+Du0.values)"""
+		
+		
 	else:
 		u0 = prior.sample()
 		u0 = moi2d.mapOnInterval("wavelet", packWavelet(np.zeros((len(unpackWavelet(u0.waveletcoeffs)),))))
