@@ -101,7 +101,7 @@ class linEllipt2d():
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
 		return moi2d.mapOnInterval("expl", vals)
 	
-	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1
+	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22
 		set_log_level(40)
 		u = TrialFunction(self.V)
 		v = TestFunction(self.V)

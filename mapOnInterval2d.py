@@ -171,7 +171,7 @@ class mapOnInterval():
 				return mapOnInterval("expl", self.values + m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
-					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)), resol=self.resol)
+					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)), resol=max(self.resol, m.resol))
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnInterval("handle", lambda x: self.handle(x) + m.handle(x))
@@ -194,7 +194,7 @@ class mapOnInterval():
 				return mapOnInterval("expl", self.values - m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
-					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)-unpackWavelet(m.waveletcoeffs)), resol=self.resol)
+					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)-unpackWavelet(m.waveletcoeffs)), resol=max(self.resol, m.resol))
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnInterval("handle", lambda x: self.handle(x) - m.handle(x))
@@ -223,7 +223,7 @@ class mapOnInterval():
 			if self.inittype == "handle":
 				return mapOnInterval("handle", lambda x: self.handle(x) * m)
 			elif self.inittype == "wavelet":
-				return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)*m))
+				return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)*m), resol=self.resol)
 			elif self.inittype == "fourier":
 				return mapOnInterval("fourier", [fm * m for fm in self.fouriermodes])
 			else:
