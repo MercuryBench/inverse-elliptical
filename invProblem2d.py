@@ -13,11 +13,11 @@ import scipy.optimize
 from fenics import *
 
 class inverseProblem():
-	def __init__(self, fwd, prior, gamma, obsind=None, obs=None, resol=None):
+	def __init__(self, fwd, prior, gamma, obspos=None, obs=None, resol=None):
 		# need: type(fwd) == fwdProblem, type(prior) == measure
 		self.fwd = fwd
 		self.prior = prior
-		self.obsind = obsind
+		self.obspos = obspos
 		self.obs = obs
 		self.gamma = gamma
 		self.resol = resol
@@ -83,39 +83,47 @@ class inverseProblem():
 		y1primeprime = self.fwd.solveWithHminus1RHS_variant(kappa, kappa1, y1prime, kappa2, y2prime)
 		return y1primeprime+y2primeprime
 	
-	def Gfnc(self, u, Fu=None):
-		if self.obsind == None:
-			raise ValueError("obsind need to be defined")
+	def Gfnc(self, u, Fu=None, obspos=None):
+		if self.obspos == None and obspos is None:
+			raise ValueError("self.obspos need to be defined or obspos needs to be given")
 		if Fu is None:
 			p = self.Ffnc(u)
 		else:
 			p = Fu
-		obs = p.values[self.obsind[0], self.obsind[1]]
+		if obspos is None:
+			obs = p.handle(self.obspos[0], self.obspos[1])
+		else:
+			obs = p.handle(obspos[0], obspos[1]) # assumes that obspos = [[x1,x2,x3,...], [y1,y2,y3,...]]
 		return obs
 		
-	def DGfnc(self, u, h):
+	def DGfnc(self, u, h, obspos=None):
+		if self.obspos == None and obspos is None:
+			raise ValueError("self.obspos need to be defined or obspos needs to be given")			
 		Dp = self.DFfnc(u, h)
-		return Dp.values[self.obsind[0], self.obsind[1]]
+		if obspos is None:
+			return Dp.handle(self.obspos[0], self.obspos[1])
+		else:
+			return Dp.handle(obspos[0], obspos[1])
 		
 	
-	def Phi(self, u, obs, Fu=None):
-		discrepancy = obs-self.Gfnc(u, Fu)
+	def Phi(self, u, obs, obspos=None, Fu=None):
+		discrepancy = obs-self.Gfnc(u, Fu, obspos=obspos)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 		
 		
-	def DPhi(self, u, obs, h):
-		discrepancy = obs-self.Gfnc(u)
-		DG_of_u_h = self.DGfnc(u, h)
+	def DPhi(self, u, obs, h, obspos=None, Fu=None):
+		discrepancy = obs-self.Gfnc(u, Fu=Fu, obspos=obspos)
+		DG_of_u_h = self.DGfnc(u, h, obspos=obspos)
 		return -1.0/(self.gamma**2)*np.dot(discrepancy, DG_of_u_h)		
 	
-	def I(self, u, obs):
-		return self.Phi(u, obs) + self.prior.normpart(u)
+	def I(self, u, obs, obspos=None, Fu=None):
+		return self.Phi(u, obs, obspos=obspos, Fu=Fu) + self.prior.normpart(u)
 	
-	def DI(self, u, obs, h):
-		DPhi_u_h = self.DPhi(u, obs, h)
+	def DI(self, u, obs, h, obspos=None, Fu=None):
+		DPhi_u_h = self.DPhi(u, obs, h, obspos=obspos, Fu=Fu)
 		return DPhi_u_h + self.prior.covInnerProd(u, h)	
 	
-	def DI_vec(self, u, obs):
+	def DI_vec(self, u, obs, obspos=None, Fu=None):
 		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
 		DIvec = np.zeros((numDir,))
 		resol = u.resol
@@ -123,7 +131,7 @@ class inverseProblem():
 			temp = np.zeros((numDir,))
 			temp[direction] = 1
 			h = moi2d.mapOnInterval("wavelet", packWavelet(temp), resol=resol)
-			DIvec[direction] = self.DI(u, obs, h)
+			DIvec[direction] = self.DI(u, obs, h, obspos=obspos, Fu=Fu)
 		return DIvec
 			
 	
@@ -209,7 +217,7 @@ class inverseProblem():
 				return uHistFull, PhiHist
 			return uHist
 
-	def plotSolAndLogPermeability(self, u, sol=None, obs=None):
+	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None):
 		fig = plt.figure(figsize=(7,14))
 		ax = fig.add_subplot(211, projection='3d')
 		if sol is None:
@@ -219,7 +227,7 @@ class inverseProblem():
 		X, Y = np.meshgrid(x, x)
 		ax.plot_wireframe(X, Y, sol.values)
 		if obs is not None:
-			ax.scatter(x[obsind[1]], x[obsind[0]], obs, s=20, c="red")
+			ax.scatter(obspos[0], obspos[1], obs, s=20, c="red")
 		plt.subplot(2,1,2)
 		N2 = u.values.shape[0]
 		xx = np.linspace(0, 1, N2)
@@ -291,7 +299,10 @@ if __name__ == "__main__":
 		return -5.0/log10(e) * np.logical_and(np.logical_and(x <= 0.6, x >= 0.4), np.logical_or(y >= 0.6, y <= 0.3))  +3
 	
 	def myUTruth3(x,y):
-		return 1 - 4.0*np.logical_and(np.logical_and(x >= 0.3, x <= 0.8), y <= 0.6)
+		return 1 - 4.0*np.logical_and(np.logical_and(x >= 0.375, x < 0.75), y < 0.625)
+	
+	#def myUTruth4(x,y):
+		
 
 	class fTestbed(Expression): # more complicated source and sink term
 		def eval(self, values, x):
@@ -323,28 +334,31 @@ if __name__ == "__main__":
 			return False
 			
 	f = fTestbed(degree = 2)
-	#f = Expression('0*x[0]', degree=2)
+	f = Expression('0*x[0]', degree=2)
 	u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 2 : 0', degree=2)
-	resol = 4
-	J = 3
+	resol = 5
+	J = 4
 	fwd = linEllipt2d(f, u_D, boundaryD, resol=resol)
-	prior = GeneralizedGaussianWavelet2d(1.0, 0.0, J, resol=resol) # was 1.0, 1.0 before!
+	prior = GeneralizedGaussianWavelet2d(.01, 1.0, J, resol=resol) # was 1.0, 1.0 before!
 	#prior = GaussianFourier2d(np.zeros((5,5)), 1, 1)
-	obsind_raw = np.arange(1, 2**resol, 2)
-	ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
-	obsind = [ind1.flatten(), ind2.flatten()]
+	obspos = np.random.uniform(0, 1, (2, 500))
+	obspos = [obspos[0,:], obspos[1, :]]
+	#obsind_raw = np.arange(1, 2**resol, 2)
+	#ind1, ind2 = np.meshgrid(obsind_raw, obsind_raw)
+	#obsind = [ind1.flatten(), ind2.flatten()]
 	gamma = 0.01
 	
 	# Test inverse problem for Fourier prior
 	#invProb = inverseProblem(fwd, prior, gamma, obsind=obsind)
 	
-	invProb = inverseProblem(fwd, prior, gamma, obsind=obsind, resol=resol)
+	invProb = inverseProblem(fwd, prior, gamma, resol=resol)
+	invProb.obspos = obspos
 	
 	# ground truth solution
 	kappa = myKappaTestbed(degree=2)
-	#u = moi2d.mapOnInterval("handle", myUTruth)
-	#u = moi2d.mapOnInterval("handle", myUTruth3); u.numSpatialPoints = 2**resol
-	u = prior.sample()
+	#u = moi2d.mapOnInterval("handle", myUTruth); u.numSpatialPoints = 2**resol
+	u = moi2d.mapOnInterval("handle", myUTruth3); u.numSpatialPoints = 2**resol
+	#u = prior.sample()
 	#u = prior.sample()
 	#plt.figure()
 	sol = invProb.Ffnc(u)
@@ -359,10 +373,11 @@ if __name__ == "__main__":
 	X, Y = np.meshgrid(x, x)
 	ax.plot_wireframe(X, Y, sol.values)"""
 	plt.ion()
-	obs = sol.values[obsind] + np.random.normal(0, gamma, (len(obsind_raw)**2,))
+	#obs = sol.values[obsind] + np.random.normal(0, gamma, (len(obsind_raw)**2,))
+	obs = sol.handle(obspos[0], obspos[1]) + np.random.normal(0, gamma, (len(obspos[0]),))
 	invProb.obs = obs
 	
-	invProb.plotSolAndLogPermeability(u, sol, obs)
+	invProb.plotSolAndLogPermeability(u, sol, obs, obspos=obspos)
 	
 	
 	# plot ground truth logpermeability
@@ -402,7 +417,7 @@ if __name__ == "__main__":
 	
 
 	
-	if len(sys.argv) > 1 and not sys.argv[1] == "D":
+	if len(sys.argv) > 1 and not sys.argv[1] == "D" and not sys.argv[1] == "sandbox":
 		pkl_file = open(sys.argv[1], 'rb')
 
 		data = pickle.load(pkl_file)
@@ -485,15 +500,23 @@ if __name__ == "__main__":
 		Du0 = invProb.DFfnc(u0, h)
 		recon = moi2d.mapOnInterval("expl", Fu0.values+Du0.values)"""
 		
+	elif len(sys.argv) > 1 and sys.argv[1] == "sandbox":
+		import scipy.io as sio
+		mat = sio.loadmat('measurements.mat')
+		print(mat.keys())
+		obsVals = mat["measval"]
+		portnum = mat["portnum"]
+		internnum = mat["internnum"] 
+		meas_loc = mat["meas_loc"] # indexed by internnums. Two issues: internnum start with 1 and meas_loc = 288x1= 6*48 (includes pumping well)
 		
 	else:
 		u0 = prior.sample()
 		u0 = moi2d.mapOnInterval("wavelet", packWavelet(np.zeros((len(unpackWavelet(u0.waveletcoeffs)),))))
 	
-		print("utruth Phi: " + str(invProb.Phi(u, obs)))
-		print("u0 Phi: " + str(invProb.Phi(u0, obs)))
-		print("utruth I: " + str(invProb.I(u, obs)))
-		print("u0 I: " + str(invProb.I(u0, obs)))
+		print("utruth Phi: " + str(invProb.Phi(u, obs, obspos=obspos)))
+		print("u0 Phi: " + str(invProb.Phi(u0, obs, obspos=obspos)))
+		print("utruth I: " + str(invProb.I(u, obs, obspos=obspos)))
+		print("u0 I: " + str(invProb.I(u0, obs, obspos=obspos)))
 		sol0 = invProb.Ffnc(u0)
 		invProb.plotSolAndLogPermeability(u0, sol0)
 	
@@ -503,7 +526,7 @@ if __name__ == "__main__":
 			return invProb.I(moi2d.mapOnInterval("fourier", u_modes_unpacked.reshape((N_modes, N_modes)), resol=resol), obs)
 	
 		def costFnc_wavelet(u_modes_unpacked):
-			return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked), resol=resol), obs))
+			return float(invProb.I(moi2d.mapOnInterval("wavelet", packWavelet(u_modes_unpacked), resol=resol), obs, obspos=obspos))
 			#uhf, C = invProb.randomwalk(u0, obs, 0.1, 100, printDiagnostic=True, returnFull=True, customPrior=False)
 		
 		def jac_costFnc_wavelet(u_modes_unpacked):
@@ -516,7 +539,127 @@ if __name__ == "__main__":
 		start = time.time()
 		#res = scipy.optimize.minimize(costFnc, np.zeros((N_modes,N_modes)), method='Nelder-Mead', options={'disp': True, 'maxiter': 1000})
 		#res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), method='Nelder-Mead', options={'disp': True, 'maxiter': 5000})
-		res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), jac=jac_costFnc_wavelet, method='BFGS', options={'disp': True, 'maxiter': 10})
+		#res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), jac=jac_costFnc_wavelet, method='BFGS', options={'disp': True, 'maxiter': 10})
+		end = time.time()
+		#uOpt = moi2d.mapOnInterval("fourier", np.reshape(res.x, (N_modes,N_modes)))
+		#uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
+
+		"""print("Took " + str(end-start) + " seconds")
+		print(str(res.nit) + " iterations")
+		print(str(res.nfev) + " function evaluations")
+		print("Reduction of function value from " + str(invProb.I(u0, obs)) + " to " + str(invProb.I(uOpt, obs)))
+		print("Optimum is " + str(invProb.I(u, obs)))"""
+	
+		#invProb.plotSolAndLogPermeability(uOpt)
+		#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
+		#data = {'u_waveletcoeffs': u.waveletcoeffs, 'uOpt_waveletcoeffs': uOpt.waveletcoeffs,'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
+		#data = {'u_modes': u.fouriermodes, 'uOpt_modes': uOpt.fouriermodes, 'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
+		#output = open('data_medium8x8_artificial_solved.pkl', 'wb')
+		#pickle.dump(data, output)
+		#pkl_file = open('data_medium8x8_artificial_solved.pkl', 'rb')
+		#data = pickle.load(pkl_file)
+		#resol = data["resol"]
+		#obs = data["obs"]
+		#u = moi2d.mapOnInterval("wavelet", data["u_waveletcoeffs"], resol=resol)
+		#uOpt = moi2d.mapOnInterval("wavelet", data["uOpt_waveletcoeffs"], resol=resol)
+		def hN(n, val, J, resol):
+			temp = np.zeros((J,))
+			temp[n] = val
+			return moi2d.mapOnInterval("wavelet", packWavelet(temp), resol=resol)
+		
+		def costFnc_wavelet_line(u_modes_unpacked, h_unpacked, alpha):
+			return costFnc_wavelet(u_modes_unpacked + h_unpacked*alpha)
+		
+		#grad0 = invProb.DI_vec(u0, obs)
+		
+		def findReasonableAlpha(fun, u_modes_unpacked, h_unpacked):
+			alpha = 1.0
+			val0 = fun(u_modes_unpacked)
+			val = fun(u_modes_unpacked + h_unpacked*alpha)
+			while np.isnan(val) or val > val0*(10**2):
+				alpha /= 10.0
+				val = fun(u_modes_unpacked + h_unpacked*alpha)
+			return alpha
+		def backtracking(xk, pk, alpha, gradk, rho=0.75, c = 0.5):
+			prop = xk + alpha*pk
+			fxk = costFnc_wavelet(xk)
+			fprop = costFnc_wavelet(prop)
+			while fprop > fxk + c*alpha*np.dot(gradk, pk):
+				alpha = rho*alpha
+				prop = xk + alpha*pk
+				fprop = costFnc_wavelet(prop)
+			return alpha
+		
+		def strongWolfe(xk, pk, alpha, gradk, rho=0.75, c1 = 0.0001, c2 = 0.1):
+			assert c1 < c2
+			prop = xk + alpha*pk
+			fxk = costFnc_wavelet(xk)
+			fprop = costFnc_wavelet(prop)
+			while fprop > fxk + c1*alpha*np.dot(gradk, pk) or abs(np.dot(jac_costFnc_wavelet(prop), pk)) >  -c2*np.dot(gradk, pk):
+				alpha = rho*alpha
+				prop = xk + alpha*pk
+				fprop = costFnc_wavelet(prop)
+			return alpha
+		
+		def findAlpha(u_modes_unpacked, h_unpacked, gradf=None, rho=0.75, c=0.5):
+			alpha = findReasonableAlpha(u_modes_unpacked, h_unpacked)
+			if gradf is None:
+				gradf = invProb.DI_vec(u_modes_unpacked, obs)
+			alpha = backtracking(u_modes_unpacked, h_unpacked, alpha, gradf, rho=rho, c=c)
+			return alpha
+			
+		def findAlpha_SW(u_modes_unpacked, h_unpacked, gradf=None, rho=0.75, c1=0.3, c2 = 0.4):
+			alpha = findReasonableAlpha(u_modes_unpacked, h_unpacked)
+			if gradf is None:
+				gradf = invProb.DI_vec(u_modes_unpacked, obs)
+			alpha = strongWolfe(u_modes_unpacked, h_unpacked, alpha, gradf, rho=rho, c1=c1, c2=c2)
+			return alpha
+		import linesearch as ls
+		def nonlinCG_FR(fun, jac, x0, rho=0.75, c1 = 0.0001, c2=0.1):
+			xk = x0
+			#fk = costFnc_wavelet(x0)
+			fk = fun(x0)
+			#gradk = jac_costFnc_wavelet(x0)
+			gradk = jac(x0)
+			pk = -gradk
+			normgradk = np.dot(gradk, gradk)
+			gradkplus1 = None
+			normgradkplus1 = 0
+			betakplus1 = 0
+			alphak = 0
+			print(fk)
+			print(normgradk)
+			print("-----")
+			counter = 1
+			while normgradk > 1.0  and counter < 6:
+				#alphamax = findReasonableAlpha(fun, xk, pk)
+				#print("Reasonable alpha: " + str(alphamax))
+				ret = ls.line_search_wolfe2(fun, jac, xk, pk, gfk=gradk, old_fval=fk,
+									  old_old_fval=None, args=(), c1=1e-4, c2=0.9, amax=5000, alphamax=1.0)#findAlpha_SW(xk, pk, gradf=gradk,rho=rho, c1=c1, c2=c2)
+				alphak = ret[0]
+				xkplus1 = xk + alphak*pk
+				gradkplus1 = jac(xkplus1)
+				normgradkplus1 = np.dot(gradkplus1, gradkplus1)
+				betakplus1 = normgradkplus1/normgradk
+				pkplus1 = -gradkplus1 + betakplus1*pk 
+				# k -> k+1
+				normgradk = normgradkplus1
+				xk = xkplus1
+				pk = pkplus1
+				fk = fun(xk)
+				print("Iteration " + str(counter))
+				print(fk)
+				print(normgradk)
+				print("-----")
+				counter += 1
+			return xk, pk, gradk
+		
+		scale = 0.0001
+		fnc_scaled = lambda x: costFnc_wavelet(scale*x)
+		jac_fnc_scaled = lambda x: jac_costFnc_wavelet(scale*x)*scale
+		start = time.time()
+		res = scipy.optimize.minimize(costFnc_wavelet, np.zeros((numCoeffs,)), method='Nelder-Mead', options={'disp': True, 'maxiter': 50000, 'maxfev': 50000})
+		#res = scipy.optimize.minimize(fnc_scaled, np.zeros((numCoeffs,)), jac=jac_fnc_scaled, method='CG', options={'disp': True, 'maxiter': 50})
 		end = time.time()
 		#uOpt = moi2d.mapOnInterval("fourier", np.reshape(res.x, (N_modes,N_modes)))
 		uOpt = moi2d.mapOnInterval("wavelet", packWavelet(res.x), resol=resol)
@@ -524,22 +667,17 @@ if __name__ == "__main__":
 		print("Took " + str(end-start) + " seconds")
 		print(str(res.nit) + " iterations")
 		print(str(res.nfev) + " function evaluations")
-		print("Reduction of function value from " + str(invProb.I(u0, obs)) + " to " + str(invProb.I(uOpt, obs)))
-		print("Optimum is " + str(invProb.I(u, obs)))
-	
-		#invProb.plotSolAndLogPermeability(uOpt)
-		#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
-		#data = {'u_waveletcoeffs': u.waveletcoeffs, 'uOpt_waveletcoeffs': uOpt.waveletcoeffs,'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
-		#data = {'u_modes': u.fouriermodes, 'uOpt_modes': uOpt.fouriermodes, 'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
-		#output = open('data.pkl', 'wb')
-		#pickle.dump(data, output)
-		def hN(n, val, J, resol):
-			temp = np.zeros((J,))
-			temp[n] = val
-			return moi2d.mapOnInterval("wavelet", packWavelet(temp), resol=resol)
+		print("Reduction of function value from " + str(invProb.I(u0, obs, obspos=obspos)) + " to " + str(invProb.I(uOpt, obs, obspos=obspos)))
+		print("Optimum is " + str(invProb.I(u, obs, obspos=obspos)))
+
 		
-		def costFnc_wavelet_line(u_modes_unpacked, h_unpacked, alpha):
-			return costFnc_wavelet(u_modes_unpacked + h_unpacked*alpha*0.00001)
+	
+		invProb.plotSolAndLogPermeability(uOpt)
+		#xk, pk, gradk = nonlinCG_FR(fnc_scaled, jac_fnc_scaled, np.zeros((16,)))
+		
+
+
+		
 		
 		
 	

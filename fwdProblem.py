@@ -114,7 +114,69 @@ class linEllipt2d():
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
 		return moi2d.mapOnInterval("expl", vals)
 		
+class sandbox():
+	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
+	def __init__(self, f, resol=4, xresol=7):
+		self.f = f
+		self.u_D = Constant('0')
+		self.resol = resol
+		def boundaryD(x, on_boundary): # special Dirichlet boundary condition
+			if on_boundary:
+				if x[1] > 10**(-8):
+					return True
+				else:
+					return False
+			else:
+				return False
+		
+		self.boundaryD = boundaryD
+		self.mesh = RectangleMesh(Point(0,0), Point(160,78), 2**self.resol, 2**self.resol)
+		self.V = FunctionSpace(self.mesh, 'P', 1)
+		self.bc = DirichletBC(self.V, self.u_D, self.boundaryD)
+		self.xresol = 7
 
+
+	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		L = self.f*v*dx		
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		solve(a == L, uSol, self.bc)
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
+		return moi2d.mapOnInterval("expl", vals)
+	
+	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		#L = self.f*v*dx		
+		L = - k1*dot(grad(y),grad(v))*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		u_D_0 = Expression('0*x[0]', degree=2)
+		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))#
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
+		return moi2d.mapOnInterval("expl", vals)
+	
+	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		#L = self.f*v*dx		
+		L = - (k1*dot(grad(y2),grad(v)) + k2*dot(grad(y1),grad(v)))*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		u_D_0 = Expression('0*x[0]', degree=2)
+		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
+		return moi2d.mapOnInterval("expl", vals)
+		
 if __name__ == "__main__":
 	if False: # 1d case
 		x = np.linspace(0, 1, 512)
@@ -175,48 +237,76 @@ if __name__ == "__main__":
 		print(et-st)
 		plt.show()
 	else: #2d case
-		u_D = Expression('(x[0] >= 0.5 && x[1] <= 0.6) ? 1 : 0', degree=2)
+		#u_D = Expression('(x[0] >= 100 && x[1] <= 100) ? 1 : 0', degree=2)
 		
 		class myKappaTestbed(Expression): # more complicated topology
 			def eval(self, values, x):
-				if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
+				"""if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
 					values[0] = 0.0001
 				elif x[0] <= 0.5+tol and x[0] >= 0.45 - tol and x[1] >= 0.6 - tol:
 					values[0] = 0.0001
 				elif x[0] <= 0.75 + tol and x[0] >= 0.7 - tol and x[1] >= 0.2 - tol and x[1] <= 0.8+tol:
 					values[0] = 100
 				else:
-					values[0] = 1
+					values[0] = 1"""
+				"""if x[1] <= 1.5*x[0] - 100:
+					values[0] = 0.0001
+				else:
+					values[0] = 100"""
+				
+				#values[0] = 0.077
+				if x[0] > 80:
+					values[0] = 0.1
+				else:
+					values[0] = 0.05
 
 		class fTestbed(Expression): # more complicated source and sink term
 			def eval(self, values, x):
-				if pow(x[0]-0.6, 2) + pow(x[1]-0.85, 2) <= 0.1*0.1:
-					values[0] = -20
-				elif pow(x[0]-0.2, 2) + pow(x[1]-0.75, 2) <= 0.1*0.1:
-					values[0] = 20
+				if pow(x[0]-40, 2) + pow(x[1]-20, 2) <= 2**2:
+					values[0] = -8.2667/100
+					#elif pow(x[0]-0.2, 2) + pow(x[1]-0.75, 2) <= 0.1*0.1:
+					#	values[0] = 20
 				else:
 					values[0] = 0
 		
 		def boundary(x, on_boundary):
 			return on_boundary
 			
-		def boundaryD(x, on_boundary): # special Dirichlet boundary condition
+		"""def boundaryD(x, on_boundary): # special Dirichlet boundary condition
 			if on_boundary:
-				if x[0] >= 0.6-tol and x[1] <= 0.5:
+				if x[0] >= 1000 and x[1] <= 100:
 					return True
-				elif x[0] <= tol: # obsolete
+				elif x[0] <= 0.1: # obsolete
+					return True
+				elif x[1] >= 499:
 					return True
 				else:
 					return False
 			else:
-				return False
+				return False"""
 		f = fTestbed(degree = 2)
-		lE2d = linEllipt2d(f, u_D, boundaryD)
+		lE2d = sandbox(f, resol=7)
 		k = myKappaTestbed(degree = 2)
-		uSol = lE2d.solve(k)
-		
-		plt.contourf(uSol.values, 30)
+		uSol = lE2d.solve(k, pureFenicsOutput=True)
+		vtkfile = File('solution_sandbox.pvd')
+		vtkfile << uSol
+		#plot(lE2d.mesh)
+		def plot3d(u):
+			fig = plt.figure()
+			ax = fig.add_subplot(111, projection='3d')
+			N2 = u.values.shape[0]
+			xx = np.linspace(0, 1, N2)
+			XX, YY = np.meshgrid(xx, xx)
+			ax.plot_wireframe(XX, YY, u.values)
+			plt.show()
+		vals = np.reshape(uSol.compute_vertex_values(), (2**lE2d.resol+1, 2**lE2d.resol+1))
+		fnc = moi2d.mapOnInterval("expl", vals)
+		plt.figure();
+		plt.ion()
+		plt.contourf(fnc.values, 30)
+		plt.colorbar()
 		plt.show()
+		plot3d(fnc)
 
 
 		
