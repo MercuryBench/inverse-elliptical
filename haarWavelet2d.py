@@ -10,7 +10,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # definition of scaling function, mother wavelet and scaled versions
 
 # 1D functions
-def phifnc_plain(x):
+def phifnc_plain(x): #############################################
 	if x >= 0:
 		if x < 1:
 			return 1
@@ -21,14 +21,30 @@ psifnc = lambda x: phifnc(2*x) - phifnc(2*x-1)
 psi_scale = lambda x, n, k: 2**(-n/2) * psifnc(x/2**(n) - k)
 
 # 2d functions
-def phi_scale2(x, n1, k1, n2, k2):
+def phi_scale2(x, n1, k1, n2, k2): #############################################
 	assert (x.shape[0] == 2), "must be of shape (2,N)"
 	return phi_scale(x[0,:], n1, k1)*phi_scale(x[1,:], n2, k2)
 
-def psi_scale2(x, n1, k1, n2, k2):
+def psi_scale2(x, n1, k1, n2, k2): #############################################
 	assert (x.shape[0] == 2), "must be of shape (2,N)"
 	return psi_scale(x[0,:], n1, k1)*psi_scale(x[1,:], n2, k2)
 
+
+def checkWhether2dWaveletCoeff(coeff):
+	# checks whether coeff is indeed a valid 2d wavelet coefficient list
+	N = len(coeff)
+	if not isinstance(coeff, list):
+		return False
+	a0 = coeff[0]
+	if not (isinstance(a0, np.ndarray) and a0.ndim == 2):
+		return False
+	for n, a in enumerate(coeff[1:]):
+		if not (isinstance(a, list) and len(a) == 3):
+			return False
+		for amat in a:
+			if not (isinstance(amat, np.ndarray) and amat.shape == (2**n, 2**n)):
+				return False
+	return True
 
 # wavelet analysis of signal
 def waveletanalysis(f):
