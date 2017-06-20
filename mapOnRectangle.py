@@ -70,7 +70,7 @@ class mapOnRectangle():
 			self._waveletcoeffs = param
 		elif inittype == "handle":
 			assert hasattr(param, '__call__') # check whether callable (function)
-			assert len((inspect.getargspec(gg)).args) == 2 # check whether correct number of arguments (2)
+			assert len((inspect.getargspec(param)).args) == 2 # check whether correct number of arguments (2)
 			self._handle = param
 		else:
 			raise ValueError("inittype neither expl nor fourier nor wavelet")
@@ -85,9 +85,10 @@ class mapOnRectangle():
 			elif self.inittype == "wavelet":
 				self._values = hW.waveletsynthesis2d(self.waveletcoeffs, resol=self.resol)
 			elif self.inittype == "handle":
-				x = np.linspace(0, 1, self.numSpatialPoints, endpoint=False)
-				X, Y = np.meshgrid(x, x)
-				
+				x, y = np.linspace(self.x1, self.x2, self.numSpatialPoints, endpoint=False), np.linspace(self.y1, self.y2, self.numSpatialPoints, endpoint=False)
+				X, Y = np.meshgrid(x, y)
+				# watch out: self.values[0, -1] does NOT correspond to self.handle(self.x1, self.y2)
+				# rather: self.values[0, -1] = self.handle(self.x2, self.y1) (role of x and y is changed)
 				self._values = self.handle(X, Y)
 			else:
 				raise Exception("Wrong value for self.inittype")
@@ -354,67 +355,67 @@ def differentiate(x, f): # finite differences
 
 	
 #if __name__ == "__main__":
-	"""x = np.linspace(0, 1, 2**9, endpoint=False)
-	f1 = mapOnInterval("fourier", [0,0,1,0,1], 2**9)
-	#plt.ion()
-	#plt.plot(x, f1.values)
-	#hW.plotApprox(x, f1.waveletcoeffs)
-	
-	f2 = mapOnInterval("expl", np.array([4,2,3,1,2,3,4,5]), 4)
-	#hW.plotApprox(x, f2.waveletcoeffs)
-	
-	f3 = mapOnInterval("handle", lambda x: sin(3*x)-x**2*cos(x))
-	#hW.plotApprox(x, f3.waveletcoeffs)
-	
-	
-	hW.plotApprox(x, (f1*f3).waveletcoeffs)
-	plt.show()"""
-	"""modesmat = np.array([[1,0,1],[1,0,0],[0,-1,0]])
-	modesmat = np.random.uniform(-1, 1, (11,11))
-	J = 5
-	x = np.linspace(0, 1, 2**J)
-	f = evalmodesGrid(modesmat, x)
-	plt.imshow(f, interpolation='None')
-	plt.ion()
-	plt.show()
-	plt.figure()
-	X, Y = np.meshgrid(x,x)
-	Z = 1 + np.sin(2*pi*X) + np.cos(2*pi*Y) - np.cos(2*pi*X)*np.sin(2*pi*Y)
-	plt.imshow(Z, interpolation='None')
-	
-	fun = mapOnInterval("fourier", modesmat)
-	
-	# test evaluation speed
-	pts = np.random.uniform(0, 1, (2, 10))"""
-	import measures as mm
-	import time
-	"""fun = mm.GaussianFourier2d(np.zeros((31,31)), 2., 0.5).sample()
-	N = 2000
-	pts = np.random.uniform(0, 1, (2, N))
-	val = np.zeros((N,))
-	start = time.time()
-	ptseval = fun.handle(pts[0, :], pts[1, :])
-	end = time.time()
-	#for k in range(N):
-	#	val[k] = fun.handle(pts[:, k])
-	end2 = time.time()
-	print(end-start)
-	print(end2-end)"""
-	"""m1 = mapOnRectangle(0, 2, 1, 5, "wavelet", packWavelet(np.array([0,1,0,0])), resol=4)
-	mat = np.zeros((5,5))
-	mat[1,3] = 1
-	m2 = mapOnRectangle(0, 1, 5, 2, "fourier", mat, resol=6)
-	x, y = m2.getXY()
-	X, Y = np.meshgrid(x, y)
-	plt.figure(); plt.ion();
-	plt.contourf(X, Y, m2.values); plt.colorbar()
-	plt.show()
-	cc = hW.waveletanalysis2d(m2.values)
-	plt.figure()
-	for n in range(7):
-		plt.subplot(3, 3, n+1)
-		mm = mapOnRectangle(0, 1, 5, 2, "wavelet", cc[0:n+1], resol=6)
-		plt.contourf(X, Y, mm.values)"""
+"""x = np.linspace(0, 1, 2**9, endpoint=False)
+f1 = mapOnInterval("fourier", [0,0,1,0,1], 2**9)
+#plt.ion()
+#plt.plot(x, f1.values)
+#hW.plotApprox(x, f1.waveletcoeffs)
+
+f2 = mapOnInterval("expl", np.array([4,2,3,1,2,3,4,5]), 4)
+#hW.plotApprox(x, f2.waveletcoeffs)
+
+f3 = mapOnInterval("handle", lambda x: sin(3*x)-x**2*cos(x))
+#hW.plotApprox(x, f3.waveletcoeffs)
+
+
+hW.plotApprox(x, (f1*f3).waveletcoeffs)
+plt.show()"""
+"""modesmat = np.array([[1,0,1],[1,0,0],[0,-1,0]])
+modesmat = np.random.uniform(-1, 1, (11,11))
+J = 5
+x = np.linspace(0, 1, 2**J)
+f = evalmodesGrid(modesmat, x)
+plt.imshow(f, interpolation='None')
+plt.ion()
+plt.show()
+plt.figure()
+X, Y = np.meshgrid(x,x)
+Z = 1 + np.sin(2*pi*X) + np.cos(2*pi*Y) - np.cos(2*pi*X)*np.sin(2*pi*Y)
+plt.imshow(Z, interpolation='None')
+
+fun = mapOnInterval("fourier", modesmat)
+
+# test evaluation speed
+pts = np.random.uniform(0, 1, (2, 10))"""
+import measures as mm
+import time
+"""fun = mm.GaussianFourier2d(np.zeros((31,31)), 2., 0.5).sample()
+N = 2000
+pts = np.random.uniform(0, 1, (2, N))
+val = np.zeros((N,))
+start = time.time()
+ptseval = fun.handle(pts[0, :], pts[1, :])
+end = time.time()
+#for k in range(N):
+#	val[k] = fun.handle(pts[:, k])
+end2 = time.time()
+print(end-start)
+print(end2-end)"""
+"""m1 = mapOnRectangle(0, 2, 1, 5, "wavelet", packWavelet(np.array([0,1,0,0])), resol=4)
+mat = np.zeros((5,5))
+mat[1,3] = 1
+m2 = mapOnRectangle(0, 1, 5, 2, "fourier", mat, resol=6)
+x, y = m2.getXY()
+X, Y = np.meshgrid(x, y)
+plt.figure(); plt.ion();
+plt.contourf(X, Y, m2.values); plt.colorbar()
+plt.show()
+cc = hW.waveletanalysis2d(m2.values)
+plt.figure()
+for n in range(7):
+	plt.subplot(3, 3, n+1)
+	mm = mapOnRectangle(0, 1, 5, 2, "wavelet", cc[0:n+1], resol=6)
+	plt.contourf(X, Y, mm.values)"""
 		
 	
 	
