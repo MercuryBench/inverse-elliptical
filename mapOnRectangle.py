@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, pi, log10
 import haarWavelet2d as hW
+from rectangle import *
 from scipy.interpolate import RectBivariateSpline
 import scipy
 import inspect
@@ -35,26 +36,25 @@ def packWavelet(vector):
 	return packed
 
 class mapOnRectangle():
-	def __init__(self, p1, p2, inittype, param, interpolationdegree=3, resol=4):
+	def __init__(self, rect, inittype, param, interpolationdegree=3):
 		# there are three possibilities of initializing a mapOnInterval instance:
 		# 1) By explicit values on a discretization: inittype == "expl"
 		# 2) By Fourier expansion: inittype == "fourier"
 		# 3) By Haar Wavelet expansion: inittype == "wavelet"
 		# p1=(x1,y1) and p2=(x2,y2) are the lower left and upper right corner of the rectangle
-		self.x1 = p1[0]
-		self.y1 = p1[1]
-		self.x2 = p2[0]
-		self.y2 = p2[1]
-		self.p1 = p1
-		self.p2 = p2
+		assert isinstance(rect, Rectangle)
+		self.rect = rect
 		self._values = None
 		self._fouriermodes = None
 		self._waveletcoeffs = None
 		self.interpolationdegree = interpolationdegree
 		self._handle = None
 		self.inittype = inittype
-		self.resol = resol
-		self.numSpatialPoints = 2**resol
+		self.resol = rect.resol
+		self.numSpatialPoints = 2**rect.resol
+		self.x, self.y = self.rect.getXY()
+		self._X = None # meshgrid version of self.x, but this is used more seldomely so only calculate on demand (property)
+		self._Y = None 
 		
 		if inittype == "expl": 
 			assert isinstance(param, np.ndarray) and param.shape == (self.numSpatialPoints, self.numSpatialPoints)
@@ -76,17 +76,28 @@ class mapOnRectangle():
 			raise ValueError("inittype neither expl nor fourier nor wavelet")
 		
 		# The next four properties manage the variables values, fouriermodes, waveletcoeffs and handle: As each instance of an mor is initialized by one of those, the others might be empty and in that case still need to be calculated
+	
+	@property
+	def X(self):
+		if self._X is None:
+			self._X, self._Y = np.meshgrid(self.x, self.y)
+		return self._X
+	
+	@property
+	def Y(self):
+		if self._Y is None:
+			self._X, self._Y = np.meshgrid(self.x, self.y)
+		return self._Y
 		
 	@property
 	def values(self):
 		if self._values is None: # property not there yet, get from initialization data
 			if self.inittype == "fourier":
-				self._values = self.evalmodesGrid(self.fouriermodes, np.linspace(self.x1, self.x2, self.numSpatialPoints, endpoint=False), np.linspace(self.y1, self.y2, self.numSpatialPoints, endpoint=False))
+				self._values = self.evalmodesGrid(self.fouriermodes, self.x, self.y)
 			elif self.inittype == "wavelet":
 				self._values = hW.waveletsynthesis2d(self.waveletcoeffs, resol=self.resol)
 			elif self.inittype == "handle":
-				x, y = np.linspace(self.x1, self.x2, self.numSpatialPoints, endpoint=False), np.linspace(self.y1, self.y2, self.numSpatialPoints, endpoint=False)
-				X, Y = np.meshgrid(x, y)
+				X, Y = self.X, self.Y
 				# watch out: self.values[0, -1] does NOT correspond to self.handle(self.x1, self.y2)
 				# rather: self.values[0, -1] = self.handle(self.x2, self.y1) (role of x and y is changed)
 				self._values = self.handle(X, Y)
@@ -130,13 +141,13 @@ class mapOnRectangle():
 	def handle(self): 
 		if self._handle is None:
 			if self.inittype == "expl": # expl -> handle via Interpolation
-				 self._interp = RectBivariateSpline(np.linspace(self.x1, self.x2, len(self.values), endpoint=False), np.linspace(self.y1, self.y2, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 # WOAH, for some reason we need to swap x and y here?
 				 self._handle = lambda x, y: self._interp.ev(y, x)
 			elif self.inittype == "fourier": # fourier -> handle via evaluation
 				self._handle = lambda x, y: self.evalmodes(self.fouriermodes, x, y)
 			elif self.inittype == "wavelet": # wavelet -> handle via expl and the interpolation
-				 self._interp = RectBivariateSpline(np.linspace(self.x1, self.x2, len(self.values), endpoint=False), np.linspace(self.y1, self.y2, len(self.values), endpoint=False), self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 # new version:
 				 # WOAH, for some reason we need to swap x and y here?
 				 self._handle = lambda x, y: self._interp.ev(y, x)
@@ -146,12 +157,7 @@ class mapOnRectangle():
 		else:
 			return self._handle
 	
-	def getXY(self): # return discretization of [x1,x2] and [y1,y2]
-		return [np.linspace(self.x1, self.x2, self.numSpatialPoints, endpoint=False), np.linspace(self.y1, self.y2, self.numSpatialPoints, endpoint=False)]
 	
-	def getXYmeshgrid(self): # return domain discretization in form of np.meshgrid
-		x, y = self.getXY()
-		return np.meshgrid(x, y)
 	
 	def evalmodesGrid(self, modesmat, x, y): # evaluate function on the whole grid given by x \times y where x and y are np.linspace objects
 		if not isinstance(x, np.ndarray):
@@ -165,27 +171,29 @@ class mapOnRectangle():
 		M = len(x)
 		phi_mat = np.zeros((M, M, N, N))
 		X, Y = np.meshgrid(x, y)
+		Xprime = (X-self.rect.x1)/(self.rect.x2-self.rect.x1)
+		Yprime = (Y-self.rect.y1)/(self.rect.y2-self.rect.y1)
 		for k in range(N):
 			for l in range(N):
 				if k == 0 and l == 0:
 					phi_mat[:, :, 0, 0] = np.ones((M,M))
 				elif k == 0 and l > 0 and l <= maxMode:
-					phi_mat[:, :, k, l] = np.cos(l*2*pi*(X-self.x1)/(self.x2-self.x1))
+					phi_mat[:, :, k, l] = np.cos(l*2*pi*Xprime)
 				elif k == 0 and l > 0 and l > maxMode:
-					phi_mat[:, :, k, l] = np.sin((l-maxMode)*2*pi*(X-self.x1)/(self.x2-self.x1))
+					phi_mat[:, :, k, l] = np.sin((l-maxMode)*2*pi*Xprime)
 				elif k > 0 and k <= maxMode and l == 0:
-					phi_mat[:, :, k, l] = np.cos(k*2*pi*(Y-self.y1)/(self.y2-self.y1))
+					phi_mat[:, :, k, l] = np.cos(k*2*pi*Yprime)
 				elif k > 0 and k > maxMode and l == 0:
-					phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*(Y-self.y1)/(self.y2-self.y1))
+					phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)
 				elif k > 0 and l > 0:
 					if k <= maxMode and l <= maxMode:
-						phi_mat[:, :, k, l] = np.cos(k*2*pi*(Y-self.y1)/(self.y2-self.y1))*np.cos(l*2*pi*(X-self.x1)/(self.x2-self.x1))
+						phi_mat[:, :, k, l] = np.cos(k*2*pi*Yprime)*np.cos(l*2*pi*Xprime)
 					elif k <= maxMode and l > maxMode:
-						phi_mat[:, :, k, l] = np.cos(k*2*pi*(Y-self.y1)/(self.y2-self.y1))*np.sin((l-maxMode)*2*pi*(X-self.x1)/(self.x2-self.x1))
+						phi_mat[:, :, k, l] = np.cos(k*2*pi*Yprime)*np.sin((l-maxMode)*2*pi*Xprime)
 					elif k > maxMode and l <= maxMode:
-						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*(Y-self.y1)/(self.y2-self.y1))*np.cos(l*2*pi*(X-self.x1)/(self.x2-self.x1))
+						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)*np.cos(l*2*pi*Xprime)
 					else:
-						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*(Y-self.y1)/(self.y2-self.y1))*np.sin((l-maxMode)*2*pi*(X-self.x1)/(self.x2-self.x1))
+						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)*np.sin((l-maxMode)*2*pi*Xprime)
 		mm = np.reshape(modesmat, (1, 1, N, N))
 		mm = np.tile(mm, (M, M, 1, 1))
 		temp = mm*phi_mat
@@ -200,27 +208,30 @@ class mapOnRectangle():
 			maxMode = N//2
 			freqs = np.reshape(np.linspace(1, maxMode, N/2), (-1, 1))
 			phi_mat = np.zeros((N, N))
+			
+			xprime = (x-self.rect.x1)/(self.rect.x2-self.rect.x1)
+			yprime = (y-self.rect.y1)/(self.rect.y2-self.rect.y1)
 			for k in range(N):
 				for l in range(N):
 					if k == 0 and l == 0:
 						phi_mat[0, 0] = 1
 					elif k == 0 and l > 0 and l <= maxMode:
-						phi_mat[k, l] = np.cos(l*2*pi*(x-self.x1)/(self.x2-self.x1))
+						phi_mat[k, l] = np.cos(l*2*pi*xprime)
 					elif k == 0 and l > 0 and l > maxMode:
-						phi_mat[k, l] = np.sin((l-maxMode)*2*pi*(x-self.x1)/(self.x2-self.x1))
+						phi_mat[k, l] = np.sin((l-maxMode)*2*pi*xprime)
 					elif k > 0 and k <= maxMode and l == 0:
-						phi_mat[k, l] = np.cos(k*2*pi*(y-self.y1)/(self.y2-self.y1))
+						phi_mat[k, l] = np.cos(k*2*pi*yprime)
 					elif k > 0 and k > maxMode and l == 0:
-						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*(y-self.y1)/(self.y2-self.y1))
+						phi_mat[k, l] = np.sin((k-maxMode)*2*pi*yprime)
 					elif k > 0 and l > 0:
 						if k <= maxMode and l <= maxMode:
-							phi_mat[k, l] = np.cos(k*2*pi*(y-self.y1)/(self.y2-self.y1))*np.cos(l*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[k, l] = np.cos(k*2*pi*yprime)*np.cos(l*2*pi*xprime)
 						elif k <= maxMode and l > maxMode:
-							phi_mat[k, l] = np.cos(k*2*pi*(y-self.y1)/(self.y2-self.y1))*np.sin((l-maxMode)*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[k, l] = np.cos(k*2*pi*yprime)*np.sin((l-maxMode)*2*pi*xprime)
 						elif k > maxMode and l <= maxMode:
-							phi_mat[k, l] = np.sin((k-maxMode)*2*pi*(y-self.y1)/(self.y2-self.y1))*np.cos(l*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[k, l] = np.sin((k-maxMode)*2*pi*yprime)*np.cos(l*2*pi*xprime)
 						else:
-							phi_mat[k, l] = np.sin((k-maxMode)*2*pi*(y-self.y1)/(self.y2-self.y1))*np.sin((l-maxMode)*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[k, l] = np.sin((k-maxMode)*2*pi*yprime)*np.sin((l-maxMode)*2*pi*xprime)
 			temp = modesmat*phi_mat
 			return np.sum(temp)
 		else:	# hard case: x and y are proper lists
@@ -231,27 +242,29 @@ class mapOnRectangle():
 			#x = np.reshape(x, (1, -1))
 			M = x.shape[0]
 			phi_mat = np.zeros((M, N, N))
+			xprime = (x-self.rect.x1)/(self.rect.x2-self.rect.x1)
+			yprime = (y-self.rect.y1)/(self.rect.y2-self.rect.y1)
 			for k in range(N):
 				for l in range(N):
 					if k == 0 and l == 0:
 						phi_mat[:, 0, 0] = np.ones((M,))
 					elif k == 0 and l > 0 and l <= maxMode:
-						phi_mat[:, k, l] = np.cos(l*2*pi*(x-self.x1)/(self.x2-self.x1))
+						phi_mat[:, k, l] = np.cos(l*2*pi*xprime)
 					elif k == 0 and l > 0 and l > maxMode:
-						phi_mat[:, k, l] = np.sin((l-maxMode)*2*pi*(x-self.x1)/(self.x2-self.x1))
+						phi_mat[:, k, l] = np.sin((l-maxMode)*2*pi*xprime)
 					elif k > 0 and k <= maxMode and l == 0:
-						phi_mat[:, k, l] = np.cos(k*2*pi*(y-self.y1)/(self.y2-self.y1))
+						phi_mat[:, k, l] = np.cos(k*2*pi*yprime)
 					elif k > 0 and k > maxMode and l == 0:
-						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*(y-self.y1)/(self.y2-self.y1))
+						phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*yprime)
 					elif k > 0 and l > 0:
 						if k <= maxMode and l <= maxMode:
-							phi_mat[:, k, l] = np.cos(k*2*pi*(y-self.y1)/(self.y2-self.y1))*np.cos(l*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[:, k, l] = np.cos(k*2*pi*yprime)*np.cos(l*2*pi*xprime)
 						elif k <= maxMode and l > maxMode:
-							phi_mat[:, k, l] = np.cos(k*2*pi*(y-self.y1)/(self.y2-self.y1))*np.sin((l-maxMode)*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[:, k, l] = np.cos(k*2*pi*yprime)*np.sin((l-maxMode)*2*pi*xprime)
 						elif k > maxMode and l <= maxMode:
-							phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*(y-self.y1)/(self.y2-self.y1))*np.cos(l*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*yprime)*np.cos(l*2*pi*xprime)
 						else:
-							phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*(y-self.y1)/(self.y2-self.y1))*np.sin((l-maxMode)*2*pi*(x-self.x1)/(self.x2-self.x1))
+							phi_mat[:, k, l] = np.sin((k-maxMode)*2*pi*yprime)*np.sin((l-maxMode)*2*pi*xprime)
 			mm = np.reshape(modesmat, (1, N, N))
 			mm = np.tile(mm, (M, 1, 1))
 			temp = mm*phi_mat
