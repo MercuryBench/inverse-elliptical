@@ -3,6 +3,8 @@ from abc import ABCMeta, abstractmethod, abstractproperty
 import numpy as np
 import mapOnInterval as moi
 import mapOnInterval2d as moi2d
+import mapOnRectangle as mor
+from rectangle import *
 import math
 
 class measure:
@@ -55,8 +57,8 @@ class GaussianFourier(measure):
 	@property
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
-
-class GaussianFourier2d(measure):
+############ old version
+"""class GaussianFourier2d(measure):
 	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
 	# N(mean, beta*(-Laplace)^(-alpha))
 	def __init__(self, mean, alpha, beta):
@@ -96,9 +98,49 @@ class GaussianFourier2d(measure):
 	
 	@property
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		return self"""
+
+class GaussianFourier2d(measure):
+	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
+	# N(mean, beta*(-Laplace)^(-alpha))
+	def __init__(self, rect, mean, alpha, beta):
+		assert isinstance(rect, Rectangle)
+		self.rect = rect
+		self._mean = mean
+		self.alpha = alpha
+		self.beta = beta
+		self.N = len(mean)
+		freqs = np.concatenate((np.array([1]), np.linspace(1, self.N//2, self.N//2), np.linspace(1, self.N//2, self.N//2)))
+		fX, fY = np.meshgrid(freqs, freqs)
+		evs = beta*(fX**2 + fY**2)**(-self.alpha)
+		evs [0,0] = 0
+		self.eigenvals = evs
+	
+	def sample(self):
+		modes = self._mean + np.random.normal(0, 1, (self.mean.shape))*np.sqrt(self.eigenvals)
+		return mor.mapOnRectangle(self.rect, "fourier", modes)
+	
+	def covInnerProd(self, u1, u2):
+		evs = self.eigenvals
+		evs[0] = 1
+		multiplicator = 1/evs
+		multiplicator[0] = 1
+		return np.sum((u1.fouriermodes*multiplicator*u2.fouriermodes)**2)
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+		
+	@property
+	def mean(self):
+		return self._mean
+	
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
 
-class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
+######### Old version
+"""class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 	# A Gaussian measure with covariance operator a fractional negative Laplacian (diagonal over Fourier modes)
 	# N(mean, beta*(-Laplace)^(-alpha))
 	def __init__(self, kappa, s, maxJ, resol=None):
@@ -125,6 +167,55 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 		#return modes
 		u = moi2d.mapOnInterval("wavelet", modes)
 		u.resol = self.resol
+		return u
+	
+	def covInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
+		return self.kappa*np.sum(j_besovprod)	
+	
+	def cumcovInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
+		return self.kappa*np.cumsum(j_besovprod)
+
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+		
+	@property
+	def mean(self):
+		return self._mean
+	
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		return self"""
+
+class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
+	# A Gaussian measure with covariance operator diagonalizing over wavelet basis, with Besov-prior-asymptotic (but normal) coefficients 
+	def __init__(self, rect, kappa, s, maxJ):
+		assert isinstance(rect, Rectangle)
+		self.rect = rect
+		self.kappa = kappa
+		self.kappa_calc = kappa**(-0.5)
+		self.s = s
+		self.maxJ = maxJ
+		assert(maxJ <= self.rect.resol) # else to high resolution for rectangle
+		self.multiplier = np.array([2**(-j*self.s) for j in range(maxJ-1)])
+	
+	def sample(self):
+		modes1 = [np.array([[0.0]])]
+		modes2 = ([[self.kappa_calc*self.multiplier[j]*np.random.normal(0, 1, (2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
+		
+		modes = modes1 + modes2# + modesrest
+		u = mor.mapOnRectangle(self.rect, "wavelet", modes)
 		return u
 	
 	def covInnerProd(self, w1, w2):
