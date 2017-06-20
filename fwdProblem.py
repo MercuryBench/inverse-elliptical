@@ -5,6 +5,7 @@ import mapOnInterval2d as moi2d
 import time
 from measures import  *
 from math import pi
+from rectangle import *
 import matplotlib.pyplot as plt
 import scipy
 from fenics import *
@@ -19,8 +20,8 @@ class linEllipt():
 		self.pminus = pminus
 
 	def solve(self, x, k, g = None, pplus=None, pminus=None, returnC = False, moiMode = False):
-		# solves -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
-		# if g == None, we take self.g, else we take this as the right hand side (same for pplus and pminus)
+	# solves -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
+	# if g == None, we take self.g, else we take this as the right hand side (same for pplus and pminus)
 		if moiMode == True: #do not use this!
 			
 			kinv = moi.mapOnInterval("handle", lambda x: 1/k.handle(x))
@@ -60,7 +61,94 @@ class linEllipt():
 		else:
 			return p
 
-class linEllipt2d():
+def morToFenicsConverter(f, mesh, V):
+	coords = mesh.coordinates().T
+
+	# evaluate function in vertices
+	vals = f.handle(coords[0, :], coords[1, :])
+
+	fnc = Function(V)
+	fnc.vector().set_local(vals[dof_to_vertex_map(V)])
+	return fnc
+
+
+class linEllipt2dRectangle():
+	def __init__(self, rect, f, u_D, boundary_D):
+		assert isinstance(rect, Rectangle)
+		self.rect = rect
+		self.mesh = RectangleMesh(Point(rect.x1,rect.y1), Point(rect.x2,rect.y2), 2**rect.resol, 2**rect.resol)
+		self.V = FunctionSpace(self.mesh, 'P', 1)
+		
+		if isinstance(f, mor.mapOnRectangle):
+			self.f = morToFenicsConverter(f, self.mesh, self.V)
+		else:
+			self.f = f
+		
+		if isinstance(u_D, mor.mapOnRectangle):
+			self.u_D = morToFenicsConverter(u_D, self.mesh, self.V)
+		else:
+			self.u_D = u_D
+		
+		self.boundary_D = boundary_D
+		
+		self.bc = DirichletBC(self.V, self.u_D, self.boundary_D)
+	
+	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y	
+		set_log_level(40)
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverter(k, self.mesh, self.V)
+		
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		L = self.f*v*dx		
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		solve(a == L, uSol, self.bc)
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
+		
+	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverter(k, self.mesh, self.V)
+		if isinstance(k1, mor.mapOnRectangle):
+			k1 = morToFenicsConverter(k1, self.mesh, self.V)
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		#L = self.f*v*dx		
+		L = - k1*dot(grad(y),grad(v))*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		u_D_0 = Expression('0*x[0]', degree=2)
+		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))#
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
+		return mor.mapOnRectangle(rect, "expl", vals)
+	
+	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22	
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverter(k, self.mesh, self.V)
+		if isinstance(k1, mor.mapOnRectangle):
+			k1 = morToFenicsConverter(k1, self.mesh, self.V)
+		if isinstance(k2, mor.mapOnRectangle):
+			k2 = morToFenicsConverter(k2, self.mesh, self.V)
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		#L = self.f*v*dx		
+		L = - (k1*dot(grad(y2),grad(v)) + k2*dot(grad(y1),grad(v)))*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		u_D_0 = Expression('0*x[0]', degree=2)
+		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
+		return moi2d.mapOnInterval("expl", vals)
+		
+
+class linEllipt2d(): # should be obsolete after linEllipt2dRectangle
 	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
 	def __init__(self, f, u_D, boundaryD, resol=4, xresol=7):
 		self.f = f
@@ -114,7 +202,7 @@ class linEllipt2d():
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
 		return moi2d.mapOnInterval("expl", vals)
 		
-class sandbox():
+class sandbox(): # should be obsolete after linEllipt2dRectangle or should be redefined as a special case of linEllipt2dRectangle
 	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
 	def __init__(self, f, resol=4, xresol=7):
 		self.f = f
@@ -177,7 +265,7 @@ class sandbox():
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
 		return moi2d.mapOnInterval("expl", vals)
 		
-if __name__ == "__main__":
+"""if __name__ == "__main__":
 	if False: # 1d case
 		x = np.linspace(0, 1, 512)
 	
@@ -241,18 +329,18 @@ if __name__ == "__main__":
 		
 		class myKappaTestbed(Expression): # more complicated topology
 			def eval(self, values, x):
-				"""if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
+				if x[0] <= 0.5 +tol  and x[0] >= 0.45 - tol and x[1] <= 0.5+tol:
 					values[0] = 0.0001
 				elif x[0] <= 0.5+tol and x[0] >= 0.45 - tol and x[1] >= 0.6 - tol:
 					values[0] = 0.0001
 				elif x[0] <= 0.75 + tol and x[0] >= 0.7 - tol and x[1] >= 0.2 - tol and x[1] <= 0.8+tol:
 					values[0] = 100
 				else:
-					values[0] = 1"""
-				"""if x[1] <= 1.5*x[0] - 100:
+					values[0] = 1
+				if x[1] <= 1.5*x[0] - 100:
 					values[0] = 0.0001
 				else:
-					values[0] = 100"""
+					values[0] = 100
 				
 				#values[0] = 0.077
 				if x[0] > 80:
@@ -272,7 +360,7 @@ if __name__ == "__main__":
 		def boundary(x, on_boundary):
 			return on_boundary
 			
-		"""def boundaryD(x, on_boundary): # special Dirichlet boundary condition
+		def boundaryD(x, on_boundary): # special Dirichlet boundary condition
 			if on_boundary:
 				if x[0] >= 1000 and x[1] <= 100:
 					return True
@@ -284,7 +372,7 @@ if __name__ == "__main__":
 					return False
 			else:
 				return False"""
-		f = fTestbed(degree = 2)
+"""		f = fTestbed(degree = 2)
 		lE2d = sandbox(f, resol=7)
 		k = myKappaTestbed(degree = 2)
 		uSol = lE2d.solve(k, pureFenicsOutput=True)
@@ -306,7 +394,7 @@ if __name__ == "__main__":
 		plt.contourf(fnc.values, 30)
 		plt.colorbar()
 		plt.show()
-		plot3d(fnc)
+		plot3d(fnc)"""
 
 
 		
