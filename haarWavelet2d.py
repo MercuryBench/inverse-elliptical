@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
-from math import sin, cos, pi, sqrt, log, ceil
+from math import sin, cos, pi, sqrt, log, ceil, log10
 import time
 from mpl_toolkits.mplot3d import Axes3D
 # CAREFUL: This works only for signals in [0,1]x[0,1]! Also, every signal f has to have number of elements = 2**J for some integer J!
@@ -29,6 +29,23 @@ def psi_scale2(x, n1, k1, n2, k2): #############################################
 	assert (x.shape[0] == 2), "must be of shape (2,N)"
 	return psi_scale(x[0,:], n1, k1)*psi_scale(x[1,:], n2, k2)
 
+def unpackWavelet(waco):
+	J = len(waco)
+	unpacked = np.zeros((2**(2*(J-1)),)) ##### !!!!!
+	unpacked[0] = waco[0][0,0]
+	for j in range(1, J):
+		unpacked[2**(2*j-2):2**(2*j)] = np.concatenate((waco[j][0].flatten(), waco[j][1].flatten(), waco[j][2].flatten()))
+	return unpacked
+
+def packWavelet(vector):
+	packed = [np.array([[vector[0]]])]
+	J = int(log10(len(vector))/(2*log10(2)))+1
+	for j in range(1, J):
+		temp1 = np.reshape(vector[2**(2*j-2):2**(2*j-1)], (2**(j-1), 2**(j-1)))
+		temp2 = np.reshape(vector[2**(2*j-1):2**(2*j-1)+2**(2*j-2)], (2**(j-1), 2**(j-1)))
+		temp3 = np.reshape(vector[2**(2*j-1)+2**(2*j-2):2**(2*j)], (2**(j-1), 2**(j-1)))
+		packed.append([temp1, temp2, temp3])
+	return packed
 
 def checkWhether2dWaveletCoeff(coeff):
 	# checks whether coeff is indeed a valid 2d wavelet coefficient list
