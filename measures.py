@@ -209,7 +209,11 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 		self.maxJ = maxJ
 		assert(maxJ <= self.rect.resol) # else to high resolution for rectangle
 		self.multiplier = np.array([2**(-j*self.s) for j in range(maxJ-1)])
-	
+		
+		modes1 = [np.array([[0.0]])]
+		modes2 = ([[np.zeros((2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
+		self.mean = modes1 + modes2
+		
 	def sample(self):
 		modes1 = [np.array([[0.0]])]
 		modes2 = ([[self.kappa_calc*self.multiplier[j]*np.random.normal(0, 1, (2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
