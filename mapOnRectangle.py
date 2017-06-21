@@ -306,6 +306,8 @@ class mapOnRectangle():
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
 					return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)-unpackWavelet(m.waveletcoeffs)))
+				else:
+					return mapOnRectangle(self.rect, "expl", self.values - m.values)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m.handle(x))

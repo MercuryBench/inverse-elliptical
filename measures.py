@@ -212,7 +212,7 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 		
 		modes1 = [np.array([[0.0]])]
 		modes2 = ([[np.zeros((2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
-		self.mean = modes1 + modes2
+		self._mean = modes1 + modes2
 		
 	def sample(self):
 		modes1 = [np.array([[0.0]])]

@@ -2,45 +2,48 @@ from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, pi, exp, log10
+import math
 from fwdProblem import *
 from measures import *
 from haarWavelet2d import *
-import mapOnInterval as moi
-import mapOnInterval2d as moi2d
+#import mapOnInterval as moi
+#import mapOnInterval2d as moi2d
+import mapOnRectangle as mor
 import pickle
 import time, sys
 import scipy.optimize
-from fenics import *
+#from fenics import *
 
 class inverseProblem():
-	def __init__(self, fwd, prior, gamma, obspos=None, obs=None, resol=None):
+	def __init__(self, fwd, prior, gamma, obspos=None, obs=None):
 		# need: type(fwd) == fwdProblem, type(prior) == measure
 		self.fwd = fwd
+		self.rect = fwd.rect
 		self.prior = prior
 		self.obspos = obspos
 		self.obs = obs
 		self.gamma = gamma
-		self.resol = resol
+		self.resol = self.rect.resol
 		
 	# Forward operators and their derivatives:	
 	def Ffnc(self, logkappa, pureFenicsOutput=False): # F is like forward, but uses logpermeability instead of permeability
 		# coords of mesh vertices
-		coords = self.fwd.mesh.coordinates().T
+		#coords = self.fwd.mesh.coordinates().T
 
 		# evaluate permeability in vertices
-		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
-
-		kappa = Function(self.fwd.V)
-		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
+		#vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
+		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
+		#kappa = Function(self.fwd.V)
+		#kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
 		ret = self.fwd.solve(kappa, pureFenicsOutput=pureFenicsOutput)
 		
 		return ret
 	
-	def DFfnc(self, logkappa, h, y=None): # y is probably not used right here
+	def DFfnc(self, logkappa, h, F_logkappa=None): # y is probably not used right here
 		assert h.inittype == "wavelet"
-		if y is None:
-			y = self.Ffnc(logkappa, pureFenicsOutput=True)
-		coords = self.fwd.mesh.coordinates().T
+		if F_logkappa is None:
+			F_logkappa = self.Ffnc(logkappa, pureFenicsOutput=True)
+		"""coords = self.fwd.mesh.coordinates().T
 
 		# evaluate permeability in vertices
 		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
@@ -49,7 +52,10 @@ class inverseProblem():
 		kappa = Function(self.fwd.V)
 		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
 		kappa1 = Function(self.fwd.V)
-		kappa1.vector().set_local(vals1[dof_to_vertex_map(self.fwd.V)])
+		kappa1.vector().set_local(vals1[dof_to_vertex_map(self.fwd.V)])"""
+		
+		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
+		kappa1 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h.handle(x,y))
 		
 		
 		"""divy1, divy2 = moi2d.divergence(y)
@@ -58,11 +64,12 @@ class inverseProblem():
 		divx1, _ = moi2d.divergence(temp1)
 		_, divx2 = moi2d.divergence(temp2)
 		rhs = moi2d.mapOnInterval("expl", divx1 + divx2)"""
-		return self.fwd.solveWithHminus1RHS(kappa, kappa1, y)
+		return self.fwd.solveWithHminus1RHS(kappa, kappa1, F_logkappa)
 	
-	def D2Ffnc(self, logkappa, h1, h2): # funktioniert noch nicht!
-		y = self.Ffnc(logkappa, pureFenicsOutput=True)
-		coords = self.fwd.mesh.coordinates().T
+	def D2Ffnc(self, logkappa, h1, h2, F_logkappa=None): # funktioniert noch nicht!
+		if F_logkappa is None:
+			F_logkappa = self.Ffnc(logkappa, pureFenicsOutput=True)
+		"""coords = self.fwd.mesh.coordinates().T
 		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
 		vals1 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h1.handle(coords[0, :], coords[1, :])
 		vals2 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h2.handle(coords[0, :], coords[1, :])
@@ -75,11 +82,16 @@ class inverseProblem():
 		kappa2 = Function(self.fwd.V)
 		kappa2.vector().set_local(vals2[dof_to_vertex_map(self.fwd.V)])
 		kappa12 = Function(self.fwd.V)
-		kappa12.vector().set_local(vals12[dof_to_vertex_map(self.fwd.V)])
+		kappa12.vector().set_local(vals12[dof_to_vertex_map(self.fwd.V)])"""
 		
-		y1prime = self.fwd.solveWithHminus1RHS(kappa, kappa1, y, pureFenicsOutput=True)
-		y2prime = self.fwd.solveWithHminus1RHS(kappa, kappa2, y, pureFenicsOutput=True)
-		y2primeprime = self.fwd.solveWithHminus1RHS(kappa, kappa12, y)
+		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
+		kappa1 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y))
+		kappa2 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h2.handle(x,y))
+		kappa12 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y)*h2.handle(x,y))
+		
+		y1prime = self.fwd.solveWithHminus1RHS(kappa, kappa1, F_logkappa, pureFenicsOutput=True)
+		y2prime = self.fwd.solveWithHminus1RHS(kappa, kappa2, F_logkappa, pureFenicsOutput=True)
+		y2primeprime = self.fwd.solveWithHminus1RHS(kappa, kappa12, F_logkappa)
 		y1primeprime = self.fwd.solveWithHminus1RHS_variant(kappa, kappa1, y1prime, kappa2, y2prime)
 		return y1primeprime+y2primeprime
 	
@@ -106,7 +118,10 @@ class inverseProblem():
 			return Dp.handle(obspos[0], obspos[1])
 		
 	
-	def Phi(self, u, obs, obspos=None, Fu=None):
+	def Phi(self, u, obs=None, obspos=None, Fu=None):
+		if obs is None:
+			assert(self.obs is not None)
+			obs = self.obs
 		discrepancy = obs-self.Gfnc(u, Fu, obspos=obspos)
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 		
@@ -116,7 +131,7 @@ class inverseProblem():
 		DG_of_u_h = self.DGfnc(u, h, obspos=obspos)
 		return -1.0/(self.gamma**2)*np.dot(discrepancy, DG_of_u_h)		
 	
-	def I(self, u, obs, obspos=None, Fu=None):
+	def I(self, u, obs=None, obspos=None, Fu=None):
 		return self.Phi(u, obs, obspos=obspos, Fu=Fu) + self.prior.normpart(u)
 	
 	def DI(self, u, obs, h, obspos=None, Fu=None):
@@ -130,10 +145,38 @@ class inverseProblem():
 		for direction in range(numDir):
 			temp = np.zeros((numDir,))
 			temp[direction] = 1
-			h = moi2d.mapOnInterval("wavelet", packWavelet(temp), resol=resol)
+			h = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp))
 			DIvec[direction] = self.DI(u, obs, h, obspos=obspos, Fu=Fu)
 		return DIvec
-			
+
+	def I_forOpt(self, u_modes_unpacked):
+		assert(self.obs is not None)
+		if isinstance(self.prior, GaussianFourier2d):
+			return self.I(mor.mapOnRectangle(self.rect, "fourier", u_modes_unpacked.reshape((self.prior.N, self.prior.N))), self.obs)
+		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
+			return float(self.I(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(u_modes_unpacked)), self.obs))
+	
+	def find_uMAP(self, u0, nit=5000, nfev=5000):
+		start = time.time()
+		u0_vec = None
+		if isinstance(self.prior, GaussianFourier2d):
+			u0_vec = u0.fouriermodes.flatten()
+		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
+			u0_vec = unpackWavelet(u0.waveletcoeffs)
+		res = scipy.optimize.minimize(self.I_forOpt, u0_vec, method='Nelder-Mead', options={'disp': True, 'maxiter': nit, 'maxfev': nfev})
+		end = time.time()
+		uOpt = None
+		if u0.inittype == "wavelet":
+			uOpt = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(res.x))
+		elif u0.inittype == "fourier":
+			assert isinstance(self.prior, GaussianFourier2d)
+			uOpt = mor.mapOnRectangle(self.rect, "fourier", np.reshape(res.x, (self.prior.N,self.prior.N)))
+		assert(uOpt is not None)
+		print("Took " + str(end-start) + " seconds")
+		print(str(res.nit) + " iterations")
+		print(str(res.nfev) + " function evaluations")
+		print("Reduction of function value from " + str(self.I(u0)) + " to " + str(self.I(uOpt)))
+		return uOpt
 	
 	def randomwalk(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
 		u = uStart
@@ -153,7 +196,7 @@ class inverseProblem():
 			PhiHist = [Phi_val]
 			for n in range(N):
 				v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
-				v = moi2d.mapOnInterval("fourier", v_modes)
+				v = mor.mapOnRectangle(self.rect, "fourier", v_modes)
 				v1 = Phi_val
 				v2 = self.Phi(v, obs)
 				if v1 - v2 > 1:
@@ -194,7 +237,7 @@ class inverseProblem():
 					temp2 = sqrt(1-2*delta)*uwc[1] + sqrt(2*delta)*step[n][1]
 					temp3 = sqrt(1-2*delta)*uwc[2] + sqrt(2*delta)*step[n][2]
 					v_coeffs.append([temp1, temp2, temp3])
-				v = moi2d.mapOnInterval("wavelet", v_coeffs, resol=self.resol)
+				v = mor.mapOnRectangle(self.rect, "wavelet", v_coeffs)
 				v1 = Phi_val
 				v2 = self.Phi(v, obs)
 				if v1 - v2 > 1:
@@ -216,32 +259,114 @@ class inverseProblem():
 			if returnFull:
 				return uHistFull, PhiHist
 			return uHist
+	
+	def EnKF(self, obs, J, numit, gamma, retfull=False, N_more=False):
+		h = 1.0/numit
+		J_power = int(math.ceil(math.log(J, 4)))
+		J = 4**J_power
+		M = len(obs)
+		psi_wavelet = np.eye(J)
+		psis = []
+		for j in range(J):
+			psis.append(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(psi_wavelet[j, :].flatten())))	
+		us = psis
+		Gus = np.zeros((M, J))
+		yj = obs
+		obs_aug = np.tile(np.reshape(obs, (-1, 1)), (1, J))
+		Gamma = gamma*np.eye(M)
+		if retfull:
+			uHist = [us]
+		if N_more == False:
+			NN = numit
+		else:
+			NN = N_more
+		for n in range(NN):
+			for j in range(J):
+				Gus[:, j] = self.Gfnc(us[j])
+		
+			G_mean = np.reshape(np.mean(Gus, axis=1), (-1,1))
+			Gterm = Gus - G_mean
+			u_mean = us[0]
+			for ind in range(1, J):
+				u_mean = u_mean + us[j]
+			u_mean = u_mean*(1/J)
+		
+			uterm = [uj - u_mean for uj in us]
+			yj = obs_aug + 0*np.random.normal(0, gamma, (M, J))
+			d = yj - Gus
+		
+		
+			Cpp = np.zeros((M, M))
+			v0 = np.reshape(Gterm[:, 0], (M, 1))
+			Cpp = np.dot(v0, v0.T)
+			for ind in range(1, J):
+				vind = np.reshape(Gterm[:, ind], (M, 1))
+				Cpp = Cpp + np.dot(vind, vind.T)
+			Cpp = Cpp/J
+		
+			x = np.linalg.solve(h*Cpp + Gamma, d)
+		
+			Cup_x = []
+			for j in range(J):
+				Cup_x.append(uterm[0]*np.dot(Gterm[:, 0], x[:, j]))
+				for ind in range(1, J):
+					Cup_x[-1] = Cup_x[-1] + uterm[ind]*np.dot(Gterm[:, ind], x[:, j])
+				Cup_x[-1] = Cup_x[-1]*(1/J)
+		
+			u_new = [u_old + Cup_x_j*h for (u_old, Cup_x_j) in zip(us, Cup_x)]
+			if retfull:
+				uHist.append(u_new)
+			us = u_new
+		if retfull:
+			return uHist
+		else:
+			return us
+			
 
-	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None):
+	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None, three_d=False):
+		if obspos is None:
+			obspos = self.obspos
 		fig = plt.figure(figsize=(7,14))
-		ax = fig.add_subplot(211, projection='3d')
+		plt.ion()
 		if sol is None:
-			sol = self.Ffnc(u)
-		N1 = sol.values.shape[0]
-		x = np.linspace(0, 1, N1)
-		X, Y = np.meshgrid(x, x)
-		ax.plot_wireframe(X, Y, sol.values)
-		if obs is not None:
-			ax.scatter(obspos[0], obspos[1], obs, s=20, c="red")
+				sol = self.Ffnc(u)
+		if three_d:
+			ax = fig.add_subplot(211, projection='3d')
+			
+			X, Y = sol.X, sol.Y
+			ax.plot_wireframe(X.T, Y.T, sol.values)
+			if obs is not None:
+				ax.scatter(obspos[0], obspos[1], obs, s=20, c="red")
+		else:
+			ax1 = plt.subplot(2,1,1)
+			X, Y = sol.X, sol.Y
+			plt.contourf(X.T, Y.T, sol.values, 50)
+			plt.colorbar()
+			if obs is not None:
+				plt.scatter(obspos[0], obspos[1], s=20, c="red")
+				xmin = np.min(X)
+				xmax = np.max(X)
+				ymin = np.min(Y)
+				ymax = np.max(Y)
+				ax1.set_xlim([xmin, xmax])
+				ax1.set_ylim([ymin, ymax])
+				
 		plt.subplot(2,1,2)
-		N2 = u.values.shape[0]
+		"""N2 = u.values.shape[0]
 		xx = np.linspace(0, 1, N2)
-		XX, YY = np.meshgrid(xx, xx)
-		plt.contourf(XX, YY, u.values)
+		XX, YY = np.meshgrid(xx, xx)"""
+		XX, YY = u.X, u.Y
+		plt.contourf(XX, YY, u.values, 30)
 		plt.colorbar()
 		plt.show()
 
 def plot3d(u):
 	fig = plt.figure()
 	ax = fig.add_subplot(111, projection='3d')
-	N2 = u.values.shape[0]
+	"""N2 = u.values.shape[0]
 	xx = np.linspace(0, 1, N2)
-	XX, YY = np.meshgrid(xx, xx)
+	XX, YY = np.meshgrid(xx, xx)"""
+	XX, YY = u.X, u.Y
 	ax.plot_wireframe(XX, YY, u.values)
 	plt.show()
 def plot3dtrisurf(u):
@@ -402,7 +527,7 @@ if __name__ == "__main__":
 		for j in range(1, J):
 			unpacked[2**(2*j-2):2**(2*j)] = np.concatenate((waco[j][0].flatten(), waco[j][1].flatten(), waco[j][2].flatten()))
 		return unpacked
-	
+
 	def packWavelet(vector):
 		packed = [np.array([[vector[0]]])]
 		J = int(log10(len(vector))/(2*log10(2)))+1
@@ -508,7 +633,30 @@ if __name__ == "__main__":
 		portnum = mat["portnum"]
 		internnum = mat["internnum"] 
 		meas_loc = mat["meas_loc"] # indexed by internnums. Two issues: internnum start with 1 and meas_loc = 288x1= 6*48 (includes pumping well)
-		
+		class fTestbed(Expression): # more complicated source and sink term
+			def eval(self, values, x):
+				if pow(x[0]-40, 2) + pow(x[1]-20, 2) <= 1**2:
+					values[0] = -8.2667/100
+					#elif pow(x[0]-0.2, 2) + pow(x[1]-0.75, 2) <= 0.1*0.1:
+					#	values[0] = 20
+				else:
+					values[0] = 0
+		f = fTestbed(degree = 2)
+		lE2d = sandbox(f, resol=5)
+		invProb = inverseProblem(lE2d, prior, gamma, resol=resol)
+		mat = np.zeros((5,5))
+		mat[0, 1] = 0
+		m = mor.mapOnRectangle((0, 0), (160, 78), "fourier", mat, resol=6)
+		u = prior.sample()
+		wc = u.waveletcoeffs
+		u = mor.mapOnRectangle((0, 0), (160, 78), "wavelet", wc, resol=6)
+		plt.figure();
+		x, y = u.getXY()
+		X, Y = np.meshgrid(x, y)
+		plt.contourf(X, Y, u.values); plt.colorbar()
+		#u = prior.sample()
+		Fu = invProb.Ffnc(u)
+		plot3d(Fu)
 	else:
 		u0 = prior.sample()
 		u0 = moi2d.mapOnInterval("wavelet", packWavelet(np.zeros((len(unpackWavelet(u0.waveletcoeffs)),))))
@@ -552,7 +700,7 @@ if __name__ == "__main__":
 	
 		#invProb.plotSolAndLogPermeability(uOpt)
 		#data = {'u_waco': u.waveletcoeffs, 'resol': resol, 'prior': prior, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'uOpt_waco': uOpt.waveletcoeffs}
-		#data = {'u_waveletcoeffs': u.waveletcoeffs, 'uOpt_waveletcoeffs': uOpt.waveletcoeffs,'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
+		#data = {'u_waveletcoeffs': u.waveletcoeffs, 'uOpt_waveletcoeffs': uOpt.waveletcoeffs,'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs, 'J': J}
 		#data = {'u_modes': u.fouriermodes, 'uOpt_modes': uOpt.fouriermodes, 'resol': resol, 'obsind': obsind, 'gamma': gamma, 'obs': obs}
 		#output = open('data_medium8x8_artificial_solved.pkl', 'wb')
 		#pickle.dump(data, output)
