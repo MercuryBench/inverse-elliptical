@@ -66,6 +66,8 @@ def morToFenicsConverter(f, mesh, V):
 
 	# evaluate function in vertices
 	vals = f.handle(coords[0, :], coords[1, :])
+	if not vals.dtype == np.float_:
+		raise Exception("make sure your function returns float values (i.e. no integers or anything else)")
 
 	fnc = Function(V)
 	fnc.vector().set_local(vals[dof_to_vertex_map(V)])
@@ -116,7 +118,7 @@ class linEllipt2dRectangle():
 		solve(a == L, uSol, self.bc)
 		if pureFenicsOutput:
 			return uSol
-		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1)).T
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
 		
 	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
@@ -386,8 +388,8 @@ class sandbox(): # should be obsolete after linEllipt2dRectangle or should be re
 		lE2d = sandbox(f, resol=7)
 		k = myKappaTestbed(degree = 2)
 		uSol = lE2d.solve(k, pureFenicsOutput=True)
-		vtkfile = File('solution_sandbox.pvd')
-		vtkfile << uSol
+vtkfile = File('solution_sandbox.pvd')
+vtkfile << uSol
 		#plot(lE2d.mesh)
 		def plot3d(u):
 			fig = plt.figure()
