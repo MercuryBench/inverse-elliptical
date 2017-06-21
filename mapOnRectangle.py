@@ -143,14 +143,14 @@ class mapOnRectangle():
 			if self.inittype == "expl": # expl -> handle via Interpolation
 				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 # WOAH, for some reason we need to swap x and y here?
-				 self._handle = lambda x, y: self._interp.ev(y, x)
+				 self._handle = lambda x, y: self._interp.ev(x, y)
 			elif self.inittype == "fourier": # fourier -> handle via evaluation
 				self._handle = lambda x, y: self.evalmodes(self.fouriermodes, x, y)
 			elif self.inittype == "wavelet": # wavelet -> handle via expl and the interpolation
 				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 # new version:
 				 # WOAH, for some reason we need to swap x and y here?
-				 self._handle = lambda x, y: self._interp.ev(y, x)
+				 self._handle = lambda x, y: self._interp.ev(x, y)
 			else:
 				raise Exception("Wrong value for self.inittype")
 			return self._handle
@@ -272,20 +272,20 @@ class mapOnRectangle():
 	
 	# overloading of basic arithmetic operations, in order to facilitate f + g, f*3 etc. for f,g mapOnInterval instances
 	def __add__(self, m):
-		if isinstance(m, mapOnInterval): # case f + g
+		if isinstance(m, mapOnRectangle): # case f + g
 			if self.inittype == "fourier":
 				if m.inittype == "fourier":
-					return mapOnInterval("fourier", self.fouriermodes + m.fouriermodes)
+					return mapOnRectangle(self.rect, "fourier", self.fouriermodes + m.fouriermodes)
 				else:
-					return mapOnInterval("expl", self.values + m.values)
+					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			elif self.inittype == "expl":
-				return mapOnInterval("expl", self.values + m.values)
+				return mapOnRectangle("expl", self.values + m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
-					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)), resol=max(self.resol, m.resol))
+					return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)))
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
-					return mapOnInterval("handle", lambda x: self.handle(x) + m.handle(x))
+					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) + m.handle(x))
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f + number
@@ -295,20 +295,20 @@ class mapOnRectangle():
 				return mapOnInterval("expl", self.values + m)
 	
 	def __sub__(self, m):
-		if isinstance(m, mapOnInterval): # case f - g
+		if isinstance(m, mapOnRectangle): # case f - g
 			if self.inittype == "fourier":
 				if m.inittype == "fourier":
-					return mapOnInterval("fourier", self.fouriermodes - m.fouriermodes)
+					return mapOnRectangle(self.rect, "fourier", self.fouriermodes - m.fouriermodes)
 				else:
-					return mapOnInterval("expl", self.values - m.values)
+					return mapOnRectangle(self.rect, "expl", self.values - m.values)
 			elif self.inittype == "expl":
-				return mapOnInterval("expl", self.values - m.values)
+				return mapOnRectangle(self.rect, "expl", self.values - m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
-					return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)-unpackWavelet(m.waveletcoeffs)), resol=max(self.resol, m.resol))
+					return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)-unpackWavelet(m.waveletcoeffs)))
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
-					return mapOnInterval("handle", lambda x: self.handle(x) - m.handle(x))
+					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m.handle(x))
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f - number
@@ -318,27 +318,27 @@ class mapOnRectangle():
 				return mapOnInterval("expl", self.values - m)
 	
 	def __mul__(self, m):
-		if isinstance(m, mapOnInterval): # case f * g
+		if isinstance(m, mapOnRectangle): # case f * g
 			if self.inittype == "fourier":
-				return mapOnInterval("expl", self.values * m.values)
+				return mapOnRectangle(self.rect, "expl", self.values * m.values)
 			elif self.inittype == "expl":
-				return mapOnInterval("expl", self.values * m.values)
+				return mapOnRectangle(self.rect, "expl", self.values * m.values)
 			elif self.inittype == "wavelet":
-				return mapOnInterval("expl", self.values * m.values)
+				return mapOnRectangle(self.rect, "expl", self.values * m.values)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
-					return mapOnInterval("handle", lambda x: self.handle(x) * m.handle(x))
+					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) * m.handle(x))
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f * number
 			if self.inittype == "handle":
-				return mapOnInterval("handle", lambda x: self.handle(x) * m)
+				return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) * m)
 			elif self.inittype == "wavelet":
-				return mapOnInterval("wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)*m), resol=self.resol)
+				return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)*m))
 			elif self.inittype == "fourier":
-				return mapOnInterval("fourier", [fm * m for fm in self.fouriermodes])
+				return mapOnRectangle(self.rect, "fourier", self.fouriermodes*m)
 			else:
-				return mapOnInterval("expl", self.values * m)
+				return mapOnRectangle(self.rect, "expl", self.values * m)
 	def __remul__(self, m):
 		return self.__mul(m)
 	def __div__(self, m):
