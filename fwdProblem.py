@@ -73,7 +73,7 @@ def morToFenicsConverter(f, mesh, V):
 
 
 class linEllipt2dRectangle():
-	def __init__(self, rect, f, u_D, boundary_D):
+	def __init__(self, rect, f, u_D, boundary_D_boolean):
 		assert isinstance(rect, Rectangle)
 		self.rect = rect
 		self.mesh = RectangleMesh(Point(rect.x1,rect.y1), Point(rect.x2,rect.y2), 2**rect.resol, 2**rect.resol)
@@ -89,8 +89,18 @@ class linEllipt2dRectangle():
 		else:
 			self.u_D = u_D
 		
-		self.boundary_D = boundary_D
 		
+		
+		def boundary_D(x, on_boundary):
+			if on_boundary:
+				if boundary_D_boolean(x):
+					return True
+				else:
+					return False
+			else:
+				return False
+				
+		self.boundary_D = boundary_D
 		self.bc = DirichletBC(self.V, self.u_D, self.boundary_D)
 	
 	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y	

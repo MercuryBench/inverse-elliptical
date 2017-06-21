@@ -12,21 +12,16 @@ rect = Rectangle((0,0), (180,78), resol=7)
 
 f2 = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-40)**2 + (y-20)**2) < 4)*(-8.2667/100))
 
-def boundary(x, on_boundary):
-			return on_boundary
 			
-def boundary_D(x, on_boundary):
-	if on_boundary:
-		if x[1] > 10**(-8):
-			return True
-		else:
-			return False
+def boundary_D_boolean(x):
+	if x[1] > 10**(-8):
+		return True
 	else:
 		return False
 
 u_D = mor.mapOnRectangle(rect, "handle", lambda x, y: 0*x)
 
-fwd = linEllipt2dRectangle(rect, f2, u_D, boundary_D)
+fwd = linEllipt2dRectangle(rect, f2, u_D, boundary_D_boolean)
 k0 = mor.mapOnRectangle(rect, "handle", lambda x,y: 0*x + 1)
 F0 = fwd.solve(k0)
 
