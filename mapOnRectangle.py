@@ -141,12 +141,12 @@ class mapOnRectangle():
 	def handle(self): 
 		if self._handle is None:
 			if self.inittype == "expl": # expl -> handle via Interpolation
-				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._interp = RectBivariateSpline(self.x, self.y, self.values.T, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 self._handle = lambda x, y: self._interp.ev(x, y)
 			elif self.inittype == "fourier": # fourier -> handle via evaluation
 				self._handle = lambda x, y: self.evalmodes(self.fouriermodes, x, y)
 			elif self.inittype == "wavelet": # wavelet -> handle via expl and the interpolation
-				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
+				 self._interp = RectBivariateSpline(self.x, self.y, self.values.T, kx=self.interpolationdegree, ky=self.interpolationdegree)
 				 self._handle = lambda x, y: self._interp.ev(x, y)
 			else:
 				raise Exception("Wrong value for self.inittype")
@@ -280,9 +280,13 @@ class mapOnRectangle():
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
 					return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)))
+				else:
+					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) + m.handle(x))
+				else:
+					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f + number

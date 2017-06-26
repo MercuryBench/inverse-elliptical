@@ -5,6 +5,7 @@ import sys
 sys.path.append('..')
 from mapOnRectangle import *
 from rectangle import *
+from measures import *
 
 rect1 = Rectangle((0,1),(2,5),resol=4)
 
@@ -39,3 +40,15 @@ plt.subplot(2, 1, 1)
 plt.contourf(X3, Y3, m4.values); plt.colorbar()
 plt.subplot(2, 1, 2)
 plt.contourf(X3, Y3, m5.values); plt.colorbar()
+
+
+rect2 = Rectangle((0,0), (2, 1), resol = 2)
+p = GeneralizedGaussianWavelet2d(rect2, 1.0, 0.0, 2)
+f1 = p.sample() 
+f2 = mapOnRectangle(rect2, "expl", f1.values)
+f3 = mapOnRectangle(rect2, "wavelet", f1.waveletcoeffs)
+f4 = mapOnRectangle(rect2, "handle", f1.handle)
+
+g1 = mapOnRectangle(rect2, "handle", lambda x, y: 10*x + y)
+g2 = mapOnRectangle(rect2, "expl", g1.values)
+g3 = mapOnRectangle(rect2, "handle", g2.handle)
