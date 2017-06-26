@@ -367,7 +367,7 @@ def plot3d(u):
 	xx = np.linspace(0, 1, N2)
 	XX, YY = np.meshgrid(xx, xx)"""
 	XX, YY = u.X, u.Y
-	ax.plot_wireframe(XX, YY, u.values)
+	ax.plot_wireframe(XX.T, YY.T, u.values)
 	plt.show()
 def plot3dtrisurf(u):
 	fig = plt.figure()

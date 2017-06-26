@@ -2,7 +2,7 @@ from __future__ import division
 from abc import ABCMeta, abstractmethod, abstractproperty
 import numpy as np
 import mapOnInterval as moi
-import mapOnInterval2d as moi2d
+#import mapOnInterval2d as moi2d
 import mapOnRectangle as mor
 from rectangle import *
 import math

@@ -98,7 +98,7 @@ class inverseProblem():
 		return Phi_uMAP + Phiprime_uMAP(u-u_res) + 0.5* Phiprimeprime_uMAP(u-u_res, u-u_res)
 	
 	def I(self, x, u, obs):
-		return self.Phi(x, u, obs) + prior.normpart(u)
+		return self.Phi(x, u, obs) + self.prior.normpart(u)
 	
 	def DI(self, x, u, obs, h):
 		DPhi_u_h = self.DPhi(x, u, obs, h)
@@ -248,7 +248,7 @@ class inverseProblem():
 	def pack(self, lst_input):
 		val0 = lst_input[0]
 		lst = lst_input[1:]
-		J = int(math.ceil(log(len(lst), 2)))
+		J = int(math.ceil(math.log(len(lst), 2)))
 		wavelet_coeffs = [val0]
 		for j in range(J):
 			wavelet_coeffs.append(lst[2**j-1:2**(j+1)-1])
@@ -1241,27 +1241,59 @@ if __name__ == "__main__":
 		# prior measure:
 		maxJ = 9
 		kappa = 1.0
-		prior = GaussianWavelet(kappa, maxJ)
+		prior = GaussianFourier(np.zeros((13,)), 1.0, 1.0)
+		prior2 = GaussianWavelet(1.0, 5)
 		
 		# case 1: random ground truth
-		u0_test = prior.sample()
+		u0 = moi.mapOnInterval("handle", lambda x: -1.0 + ((x >= 0.6))*1.0 + 0.6, interpolationdegree=3)
 		
-		# case 2: given ground truth
-		J = 9
-		num = 2**J
-		u0 = testfnc(J)
 		
-		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=1)
+		k0 = moi.mapOnInterval("handle", lambda x: np.exp(u0.handle(x)), interpolationdegree=3)
 		
 		# construct solution and observation
-		"""p0 = fwd.solve(x, k0)
-		x0_ind = range(5, 495, 5) # observation indices
+		p0 = fwd.solve(x, k0)
+		x0_ind = range(5, 495, 15) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
-		plt.figure(2)
+		plt.figure(1)
 		plt.plot(x, p0.handle(x), 'k')
 		plt.plot(x[x0_ind], obs, 'r.')
+		plt.ion()
+		plt.show()
 		
 		ip = inverseProblem(fwd, prior, gamma, x0_ind, obs)
 		plt.ion()
-		plt.figure()
-		plt.plot(x, u0_test.values)"""
+		plt.figure(2)
+		plt.plot(x, u0.values, 'k')
+		
+		umap = ip.find_uMAP(x, prior.mean, obs, 50)
+		pmap = ip.Ffnc(x, umap)
+		umap = moi.mapOnInterval("expl", umap.values - np.mean(umap.values))
+		plt.plot(x, umap.values, 'b')
+		plt.figure(1);
+		plt.plot(x, pmap.values)
+		
+		ip2 = inverseProblem(fwd, prior2, gamma, x0_ind, obs)
+		coeffs = [np.zeros((2**j,)) for j in range(prior2.maxJ-1)]
+		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
+
+		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
+		umap_w = ip2.find_uMAP_wavelet_Gaussian(x, coeffs, obs, maxIt = 50)
+		pmap_w = ip2.Ffnc(x, umap_w)
+		umap_w = moi.mapOnInterval("expl", umap_w.values - np.mean(umap_w.values))
+		plt.figure(2)
+		plt.plot(x, umap_w.values, 'g')
+		plt.figure(1);
+		plt.plot(x, pmap_w.values, 'g')
+		#plt.plot(x[x0_ind], obs, 'r.')
+		
+		plt.figure(3)
+		plt.clf()
+		for k in range(5):
+			cc = np.zeros((8,))
+			cc[k] = 1
+			ww = moi.mapOnInterval("wavelet", ip.pack(cc))
+			plt.subplot(1,5,k+1)
+			plt.plot(x, ww.values)
+			plt.xlim([-0.1, 1.1])
+			plt.ylim([-2.1, 2.1])
+

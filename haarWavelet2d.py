@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, ceil, log10
 import time
 from mpl_toolkits.mplot3d import Axes3D
+from rectangle import *
+import mapOnRectangle as mor
 # CAREFUL: This works only for signals in [0,1]x[0,1]! Also, every signal f has to have number of elements = 2**J for some integer J!
 
 
@@ -259,12 +261,12 @@ if __name__ == "__main__":
 	f = x**2*np.sin(12*x)
 	w = waveletanalysis(f)
 	ff = waveletsynthesis(w, x)
-	plt.plot(x, f)
+	plt.plot(x, f)plt.contourf(fnc.values)
 	plt.plot(x, ff, 'r')"""
 	plt.ion()
 	#A = np.random.normal(0, 1, (16,16))
 	
-	"""J = 2**6
+	"""J = 2**7
 	X = np.linspace(-5, 5, J)
 	Y = np.linspace(-5, 5, J)
 	X, Y = np.meshgrid(X, Y)
@@ -279,11 +281,33 @@ if __name__ == "__main__":
 	plt.figure()
 	M = int(ceil(sqrt(len(hwa))))
 	plt.subplot(M, M, 1)
-	plt.imshow(Z, cmap=plt.cm.coolwarm, vmin = np.min(recon[-1]), vmax = np.max(recon[-1]), interpolation='none')
+	plt.imshow(Z, cmap=plt.cm.coolwarm, interpolation='none')
 	for k in range(1, len(hwa)):
 		plt.subplot(M, M, k+1)
-		plt.imshow(recon[k], cmap=plt.cm.coolwarm, vmin = np.min(recon[-1]), vmax = np.max(recon[-1]), interpolation='none')"""
+		plt.imshow(recon[k], cmap=plt.cm.coolwarm, interpolation='none')
 	w = [np.array([1]), [np.array([[0.2]]), np.array([[-0.2]]), np.array([[0.5]])], [np.random.normal(0, 0.01, (2,2)), np.random.normal(0, 0.01, (2,2)), np.random.normal(0, 0.01, (2,2))]]
 	f = waveletsynthesis2d(w)
-	f2 = waveletsynthesis2d(w, resol=3)
+	f2 = waveletsynthesis2d(w, resol=3)"""
+	
+	rect = Rectangle((-5,-5),(5,5), 6)
+	plt.figure()
+	for k in range(25):
+		ax = plt.subplot(5,5,k+1)
+		coeffs = np.zeros((64,))
+		coeffs[k] = 1
+		fnc = mor.mapOnRectangle(rect, "wavelet", packWavelet(coeffs))
+		plt.contourf(fnc.values)
+		ax.tick_params(labelbottom='off') 
+		ax.tick_params(labelleft='off') 
+	
+	plt.figure()
+	fnc = mor.mapOnRectangle(rect, "handle", lambda x, y: np.sin(np.sqrt(x**4 + y**2)))
+	plt.contourf(fnc.values)
+	plt.figure()
+	for k in range(6):
+		plt.subplot(3, 2, k+1)
+		fnc_cut = mor.mapOnRectangle(rect, "wavelet", fnc.waveletcoeffs[0:k+2])
+		plt.contourf(fnc_cut.values)
+	
+	
 

@@ -100,7 +100,7 @@ def plotApprox(x, w):
 
 
 if __name__ == "__main__":
-	"""J = 9
+	J = 9
 	num = 2**J
 	x = np.linspace(0, 1, 2**(J), endpoint=False)
 	gg1 = lambda x: 1 + 2**(-J)/(x**2+2**J) + 2**J/(x**2 + 2**J)*np.cos(32*x)
@@ -126,21 +126,28 @@ if __name__ == "__main__":
 	plt.ion()
 	plt.plot(x, f)
 	plt.plot(x, ff,'r')
-	plt.show()"""
-	"""
+	plt.show()
+	
 	plt.ion()
 	plt.plot(x, f)
 	plt.plot(x, ff, 'r')
-	plotApprox(x, w)"""
+	#plotApprox(x, w)
+	recon = getApprox(x, w)
+	plt.figure()
+	plt.subplot(6, 1, 1)
+	plt.plot(x, f, 'g')	
+	for k in range(5):
+		plt.subplot(6, 1, k+2)
+		plt.plot(x, recon[2*k])
 	
-	x = np.linspace(0, 1, 2**(13), endpoint=False)
+	"""x = np.linspace(0, 1, 2**(13), endpoint=False)
 	f = x**2*np.sin(12*x)
 	w = waveletanalysis(f)
 	ff = waveletsynthesis(w, x)
 	plt.plot(x, f)
 	plt.plot(x, ff, 'r')
 	plt.ion()
-	plt.show()
+	plt.show()"""
 
 
 

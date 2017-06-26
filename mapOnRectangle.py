@@ -142,14 +142,11 @@ class mapOnRectangle():
 		if self._handle is None:
 			if self.inittype == "expl": # expl -> handle via Interpolation
 				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
-				 # WOAH, for some reason we need to swap x and y here?
 				 self._handle = lambda x, y: self._interp.ev(x, y)
 			elif self.inittype == "fourier": # fourier -> handle via evaluation
 				self._handle = lambda x, y: self.evalmodes(self.fouriermodes, x, y)
 			elif self.inittype == "wavelet": # wavelet -> handle via expl and the interpolation
 				 self._interp = RectBivariateSpline(self.x, self.y, self.values, kx=self.interpolationdegree, ky=self.interpolationdegree)
-				 # new version:
-				 # WOAH, for some reason we need to swap x and y here?
 				 self._handle = lambda x, y: self._interp.ev(x, y)
 			else:
 				raise Exception("Wrong value for self.inittype")

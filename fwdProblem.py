@@ -1,7 +1,7 @@
 from __future__ import division
 import numpy as np
 import mapOnInterval as moi
-import mapOnInterval2d as moi2d
+#import mapOnInterval2d as moi2d
 import time
 from measures import  *
 from math import pi
