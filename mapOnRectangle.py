@@ -276,7 +276,7 @@ class mapOnRectangle():
 				else:
 					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			elif self.inittype == "expl":
-				return mapOnRectangle("expl", self.values + m.values)
+				return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			elif self.inittype == "wavelet":
 				if m.inittype == "wavelet":
 					return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)+unpackWavelet(m.waveletcoeffs)))
@@ -291,9 +291,9 @@ class mapOnRectangle():
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f + number
 			if self.inittype == "handle":
-				return mapOnInterval("handle", lambda x: self.handle(x) + m)
+				return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) + m)
 			else:
-				return mapOnInterval("expl", self.values + m)
+				return mapOnRectangle(self.rect, "expl", self.values + m)
 	
 	def __sub__(self, m):
 		if isinstance(m, mapOnRectangle): # case f - g
@@ -312,13 +312,15 @@ class mapOnRectangle():
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m.handle(x))
+				else:
+					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f - number
 			if self.inittype == "handle":
-				return mapOnInterval("handle", lambda x: self.handle(x) - m)
+				return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m)
 			else:
-				return mapOnInterval("expl", self.values - m)
+				return mapOnRectangle(self.rect, "expl", self.values - m)
 	
 	def __mul__(self, m):
 		if isinstance(m, mapOnRectangle): # case f * g

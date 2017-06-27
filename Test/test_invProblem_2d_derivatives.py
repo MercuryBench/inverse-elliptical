@@ -68,15 +68,40 @@ Du_h = invProb.DFfnc(u, h)
 Fu = invProb.Ffnc(u)
 Fv = invProb.Ffnc(v)
 
+
+D2u_h = invProb.D2Ffnc(u, h, h)
+
+# optical check for approximation in observation space (Fu, Fu+DFu(h), Fu+DFu(h)+0.5*D2Fu[h,h], Fv) where v = u + h
+
 plt.figure();
-plt.subplot(3, 1, 1)
-plt.contourf(Fu)
-plt.subplot(3, 1, 2)
-plt.contourf(Fu + Du_h)
-plt.subplot(3, 1, 3)
-plt.contourf(Fv)
+plt.subplot(4, 1, 1)
+plt.contourf(Fu.values)
+plt.subplot(4, 1, 2)
+plt.contourf(Fu.values + Du_h.values)
+plt.subplot(4, 1, 3)
+plt.contourf(Fu.values + Du_h.values + 0.5*D2u_h.values)
+plt.subplot(4, 1, 4)
+plt.contourf(Fv.values)
 
+# computational check
 
+print("norm Fu-Fv: " + str(np.sum((Fu.values-Fv.values)**2)))
 
+print("norm Fu+DFu-Fv: " + str(np.sum((Fu.values+Du_h.values-Fv.values)**2)))
 
+print("norm Fu+DFu+0.5*D2Fu-Fv: " + str(np.sum((Fu.values+Du_h.values+0.5*D2u_h.values-Fv.values)**2)))
+
+# optical check for approximation of I(u): (I(u), I(u)+DI(u)(h), I(u)+DI(u)(h)+D2I(u)[h,h], DI(v))
+
+hfactor = np.linspace(-1, 1, 101)
+invProb.obs = obs2
+Ivals = np.array([invProb.I(u+h*hfac) for hfac in hfactor])
+Ivals_D = invProb.I(u) + hfactor*invProb.DI(u, h)
+Ivals_D2 = invProb.I(u) + hfactor*invProb.DI(u, h) + 0.5*hfactor**2*invProb.D2I(u, h, h)
+
+plt.figure();
+plt.plot(hfactor, Ivals, '.-')
+
+plt.plot(hfactor, Ivals_D, 'r.-')
+plt.plot(hfactor, Ivals_D2, 'g.-')
 

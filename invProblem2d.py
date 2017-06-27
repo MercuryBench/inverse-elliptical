@@ -66,9 +66,10 @@ class inverseProblem():
 		rhs = moi2d.mapOnInterval("expl", divx1 + divx2)"""
 		return self.fwd.solveWithHminus1RHS(kappa, kappa1, F_logkappa)
 	
-	def D2Ffnc(self, logkappa, h1, h2, F_logkappa=None): # funktioniert noch nicht!
+	def D2Ffnc(self, logkappa, h1, h2=None, F_logkappa=None): # funktioniert noch nicht!
 		if F_logkappa is None:
 			F_logkappa = self.Ffnc(logkappa, pureFenicsOutput=True)
+		
 		"""coords = self.fwd.mesh.coordinates().T
 		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
 		vals1 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h1.handle(coords[0, :], coords[1, :])
@@ -86,8 +87,12 @@ class inverseProblem():
 		
 		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
 		kappa1 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y))
-		kappa2 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h2.handle(x,y))
-		kappa12 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y)*h2.handle(x,y))
+		if h2 is None:
+			kappa2 = kappa1
+			kappa12 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y)*h1.handle(x,y))
+		else:
+			kappa2 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h2.handle(x,y))
+			kappa12 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y)*h2.handle(x,y))
 		
 		y1prime = self.fwd.solveWithHminus1RHS(kappa, kappa1, F_logkappa, pureFenicsOutput=True)
 		y2prime = self.fwd.solveWithHminus1RHS(kappa, kappa2, F_logkappa, pureFenicsOutput=True)
@@ -117,6 +122,15 @@ class inverseProblem():
 		else:
 			return Dp.handle(obspos[0], obspos[1])
 		
+	def D2Gfnc(self, u, h1, h2=None, obspos=None):
+		if self.obspos == None and obspos is None:
+			raise ValueError("self.obspos need to be defined or obspos needs to be given")	
+		D2p = self.D2Ffnc(u, h1, h2=h2)
+		if obspos is None:
+			return D2p.handle(self.obspos[0], self.obspos[1])
+		else:
+			return D2p.handle(obspos[0], obspos[1])
+			
 	
 	def Phi(self, u, obs=None, obspos=None, Fu=None):
 		if obs is None:
@@ -126,16 +140,33 @@ class inverseProblem():
 		return 1/(2*self.gamma**2)*np.dot(discrepancy,discrepancy) 
 		
 		
-	def DPhi(self, u, obs, h, obspos=None, Fu=None):
+	def DPhi(self, u, h, obs=None, obspos=None, Fu=None):
+		if obs is None:
+			assert(self.obs is not None)
+			obs = self.obs
 		discrepancy = obs-self.Gfnc(u, Fu=Fu, obspos=obspos)
 		DG_of_u_h = self.DGfnc(u, h, obspos=obspos)
 		return -1.0/(self.gamma**2)*np.dot(discrepancy, DG_of_u_h)		
 	
+	def D2Phi(self, u, h1, h2=None, obs=None, obspos=None, Fu=None):		
+		if obs is None:
+			assert(self.obs is not None)
+			obs = self.obs
+		discrepancy = obs-self.Gfnc(u, Fu=Fu, obspos=obspos)
+		DG_of_u_h1 = self.DGfnc(u, h1, obspos=obspos)
+		if h2 is None:
+			DG_of_u_h2 = DG_of_u_h1
+			D2G_of_u_h1h2 = self.D2Gfnc(u, h1, obspos=obspos)
+		else:
+			DG_of_u_h2 = self.DGfnc(u, h2, obspos=obspos)
+			D2G_of_u_h1h2 = self.D2Gfnc(u, h1, h2, obspos=obspos)
+		return 1.0/self.gamma**2 * np.dot(DG_of_u_h1, DG_of_u_h2) - 1.0/self.gamma**2*np.dot(discrepancy, D2G_of_u_h1h2)
+	
 	def I(self, u, obs=None, obspos=None, Fu=None):
 		return self.Phi(u, obs, obspos=obspos, Fu=Fu) + self.prior.normpart(u)
 	
-	def DI(self, u, obs, h, obspos=None, Fu=None):
-		DPhi_u_h = self.DPhi(u, obs, h, obspos=obspos, Fu=Fu)
+	def DI(self, u, h, obs=None, obspos=None, Fu=None):
+		DPhi_u_h = self.DPhi(u, h, obs=obs, obspos=obspos, Fu=Fu)
 		return DPhi_u_h + self.prior.covInnerProd(u, h)	
 	
 	def DI_vec(self, u, obs, obspos=None, Fu=None):
@@ -148,6 +179,13 @@ class inverseProblem():
 			h = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp))
 			DIvec[direction] = self.DI(u, obs, h, obspos=obspos, Fu=Fu)
 		return DIvec
+	
+	def D2I(self, u, h1, h2=None, obs=None):
+		D2Phi_u_h1_h2 = self.D2Phi(u, h1, h2=h2, obs=obs)
+		if h2 is None:
+			return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h1)
+		else:
+			return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h2)
 
 	def I_forOpt(self, u_modes_unpacked):
 		assert(self.obs is not None)

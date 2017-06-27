@@ -126,6 +126,8 @@ class linEllipt2dRectangle():
 			k = morToFenicsConverter(k, self.mesh, self.V)
 		if isinstance(k1, mor.mapOnRectangle):
 			k1 = morToFenicsConverter(k1, self.mesh, self.V)
+		if isinstance(y, mor.mapOnRectangle):
+			y = morToFenicsConverter(y, self.mesh, self.V)
 		set_log_level(40)
 		u = TrialFunction(self.V)
 		v = TestFunction(self.V)
@@ -138,7 +140,7 @@ class linEllipt2dRectangle():
 		if pureFenicsOutput:
 			return uSol
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
-		return mor.mapOnRectangle(self.rect, "expl", vals)
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
 	
 	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22	
 		if isinstance(k, mor.mapOnRectangle):
@@ -157,7 +159,7 @@ class linEllipt2dRectangle():
 		u_D_0 = Expression('0*x[0]', degree=2)
 		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundary_D))
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
-		return mor.mapOnRectangle(self.rect, "expl", vals)
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
 		
 
 class linEllipt2d(): # should be obsolete after linEllipt2dRectangle
