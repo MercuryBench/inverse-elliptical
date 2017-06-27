@@ -40,7 +40,7 @@ class inverseProblem():
 		return ret
 	
 	def DFfnc(self, logkappa, h, F_logkappa=None): # y is probably not used right here
-		assert h.inittype == "wavelet"
+		#assert h.inittype == "wavelet"
 		if F_logkappa is None:
 			F_logkappa = self.Ffnc(logkappa, pureFenicsOutput=True)
 		"""coords = self.fwd.mesh.coordinates().T
@@ -334,13 +334,13 @@ class inverseProblem():
 			ax = fig.add_subplot(211, projection='3d')
 			
 			X, Y = sol.X, sol.Y
-			ax.plot_wireframe(X.T, Y.T, sol.values)
+			ax.plot_wireframe(X, Y, sol.values)
 			if obs is not None:
 				ax.scatter(obspos[0], obspos[1], obs, s=20, c="red")
 		else:
 			ax1 = plt.subplot(2,1,1)
 			X, Y = sol.X, sol.Y
-			plt.contourf(X.T, Y.T, sol.values, 50)
+			plt.contourf(X, Y, sol.values, 50)
 			plt.colorbar()
 			if obs is not None:
 				plt.scatter(obspos[0], obspos[1], s=20, c="red")

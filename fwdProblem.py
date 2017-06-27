@@ -118,7 +118,7 @@ class linEllipt2dRectangle():
 		solve(a == L, uSol, self.bc)
 		if pureFenicsOutput:
 			return uSol
-		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1)).T
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
 		
 	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
@@ -134,11 +134,11 @@ class linEllipt2dRectangle():
 		a = k*dot(grad(u), grad(v))*dx
 		uSol = Function(self.V)
 		u_D_0 = Expression('0*x[0]', degree=2)
-		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))#
+		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundary_D))#
 		if pureFenicsOutput:
 			return uSol
-		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
-		return mor.mapOnRectangle(rect, "expl", vals)
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals)
 	
 	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22	
 		if isinstance(k, mor.mapOnRectangle):
@@ -155,9 +155,9 @@ class linEllipt2dRectangle():
 		a = k*dot(grad(u), grad(v))*dx
 		uSol = Function(self.V)
 		u_D_0 = Expression('0*x[0]', degree=2)
-		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))
-		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
-		return moi2d.mapOnInterval("expl", vals)
+		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundary_D))
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals)
 		
 
 class linEllipt2d(): # should be obsolete after linEllipt2dRectangle

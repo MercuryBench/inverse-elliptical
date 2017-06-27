@@ -28,7 +28,7 @@ def boundary_D_boolean(x):
 f = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-40)**2 + (y-20)**2) < 4)*(-.01))
 
 fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
-prior1 = GaussianFourier2d(rect, np.zeros((17,17)), 1.0, 3.0)
+prior1 = GaussianFourier2d(rect, np.zeros((7,7)), 1.0, 3.0)
 prior2 = GeneralizedGaussianWavelet2d(rect, 1.0, 1.0, 5)
 
 invProb1 = inverseProblem(fwd, prior1, gamma)
@@ -69,13 +69,15 @@ invProb1.plotSolAndLogPermeability(uTruth, obs=obs)
 
 u01 = mor.mapOnRectangle(rect, "fourier", prior1._mean)
 u02 = mor.mapOnRectangle(rect, "wavelet", prior2._mean)
-#uOpt1 = invProb1.find_uMAP(u01)
-#uOpt2 = invProb2.find_uMAP(u02)
 
+import time
 
-
-#uOpt1 = invProb1.find_uMAP(uOpt1, 100000, 100000)
-#uOpt2 = invProb2.find_uMAP(uOpt2, 100000, 100000)
+start = time.time(); invProb1.Ffnc(u01); end=time.time()
+print(end-start)
+start = time.time(); invProb2.Ffnc(u02); end=time.time()
+print(end-start)
+#uOpt1 = invProb1.find_uMAP(u01, 400000, 400000)
+#uOpt2 = invProb2.find_uMAP(u02, 400000, 400000)
 
 """# now cross-checking: try to fit gaussians to wavelets and vice versa
 obs1 = invProb1.Gfnc(uTruth2) + np.random.normal(0, gamma, (N_obs,))

@@ -43,7 +43,7 @@ def boundary_D_boolean(x): # special Dirichlet boundary condition
 f = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-.6)**2 + (y-.85)**2) < 0.1**2)*(-20.0) + (((x-.2)**2 + (y-.75)**2) < 0.1**2)*20.0)
 
 fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
-m1 = GeneralizedGaussianWavelet2d(rect, 0.001, 0.5, 5)
+m1 = GeneralizedGaussianWavelet2d(rect, 0.01, 0.5, 5)
 invProb = inverseProblem(fwd, m1, gamma)
 
 uTruth = m1.sample()
@@ -55,6 +55,28 @@ invProb.plotSolAndLogPermeability(uTruth, obs=obs)
 
 uTruth2 = mor.mapOnRectangle(rect, "handle", lambda x, y: myUTruth(x, y))
 obs2 = invProb.Gfnc(uTruth2) + np.random.normal(0, gamma, (N_obs,))
-invProb.plotSolAndLogPermeability(uTruth2, obs=obs2)
+invProb.plotSolAndLogPermeability(uTruth2)
 
-uTruth2_trunc = mor.mapOnRectangle(rect, "wavelet", uTruth2.waveletcoeffs[0:5])
+
+u = uTruth2
+h = (uTruth-uTruth2)*0.1
+v = u + h
+invProb.plotSolAndLogPermeability(v, obs=obs)
+
+Du_h = invProb.DFfnc(u, h)
+
+Fu = invProb.Ffnc(u)
+Fv = invProb.Ffnc(v)
+
+plt.figure();
+plt.subplot(3, 1, 1)
+plt.contourf(Fu)
+plt.subplot(3, 1, 2)
+plt.contourf(Fu + Du_h)
+plt.subplot(3, 1, 3)
+plt.contourf(Fv)
+
+
+
+
+
