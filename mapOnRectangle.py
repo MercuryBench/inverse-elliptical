@@ -313,7 +313,7 @@ class mapOnRectangle():
 				if m.inittype == "fourier" or m.inittype == "handle":
 					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m.handle(x))
 				else:
-					return mapOnRectangle(self.rect, "expl", self.values + m.values)
+					return mapOnRectangle(self.rect, "expl", self.values - m.values)
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f - number
