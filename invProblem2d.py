@@ -24,6 +24,7 @@ class inverseProblem():
 		self.obs = obs
 		self.gamma = gamma
 		self.resol = self.rect.resol
+		self.numSolves = 0
 		
 	# Forward operators and their derivatives:	
 	def Ffnc(self, logkappa, pureFenicsOutput=False): # F is like forward, but uses logpermeability instead of permeability
@@ -36,6 +37,7 @@ class inverseProblem():
 		#kappa = Function(self.fwd.V)
 		#kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
 		ret = self.fwd.solve(kappa, pureFenicsOutput=pureFenicsOutput)
+		self.numSolves += 1
 		
 		return ret
 	
@@ -167,17 +169,30 @@ class inverseProblem():
 	
 	def DI(self, u, h, obs=None, obspos=None, Fu=None):
 		DPhi_u_h = self.DPhi(u, h, obs=obs, obspos=obspos, Fu=Fu)
-		return DPhi_u_h + self.prior.covInnerProd(u, h)	
+		inner = self.prior.covInnerProd(u, h)	
+		return DPhi_u_h + inner
 	
-	def DI_vec(self, u, obs, obspos=None, Fu=None):
+	def DI_vec_wavelet(self, u, obs, obspos=None, Fu=None):
 		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
 		DIvec = np.zeros((numDir,))
-		resol = u.resol
+		if Fu is None:
+			Fu = self.Ffnc(u)
 		for direction in range(numDir):
 			temp = np.zeros((numDir,))
 			temp[direction] = 1
 			h = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp))
-			DIvec[direction] = self.DI(u, obs, h, obspos=obspos, Fu=Fu)
+			DIvec[direction] = self.DI(u, h, obs, obspos=obspos, Fu=Fu)
+		return DIvec
+		
+	def DI_vec_fourier(self, u, obs, obspos=None, Fu=None):
+		numDir = len(u.fouriercoeffs.flatten())
+		DIvec = np.zeros((numDir,))
+		N = self.prior.N
+		for direction in range(numDir):
+			temp = np.zeros((numDir,))
+			temp[direction] = 1
+			h = mor.mapOnRectangle(self.rect, "fourier", temp.reshape((N,N)))
+			DIvec[direction] = self.DI(u, h, obs, obspos=obspos, Fu=Fu)
 		return DIvec
 	
 	def D2I(self, u, h1, h2=None, obs=None):
@@ -186,22 +201,74 @@ class inverseProblem():
 			return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h1)
 		else:
 			return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h2)
+	
+	def D2I_mat_wavelet(self, u, obs, obspos=None, Fu=None):		
+		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
+		D2Imat = np.zeros((numDir,numDir))
+		for dir1 in range(numDir):
+			temp1 = np.zeros((numDir,))
+			temp1[dir1] = 1
+			h1 = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp1))
+			for dir2 in range(dir1, numDir):
+				temp2 = np.zeros((numDir,))
+				temp2[dir2] = 1
+				h2 = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp2))
+				D2Imat[dir1, dir2] = self.D2I(u, h1, h2=h2, obs=obs)
+				D2Imat[dir2, dir1] = D2Imat[dir1, dir2]
+		return D2Imat
+	
+	def D2I_mat_fourier(self, u, obs, obspos=None, Fu=None):		
+		numDir = len(u.fouriercoeffs.flatten())
+		D2Imat = np.zeros((numDir,numDir))
+		N = self.prior.N
+		for dir1 in range(numDir):
+			temp1 = np.zeros((numDir,))
+			temp1[dir1] = 1
+			h1 = mor.mapOnRectangle(self.rect, "fourier", temp.reshape((N,N)))
+			for dir2 in range(dir1, numDir):
+				temp2 = np.zeros((numDir,))
+				temp2[dir2] = 1
+				h2 = mor.mapOnRectangle(self.rect, "fourier", temp.reshape((N,N)))
+				D2Imat[dir1, dir2] = self.D2I(u, h1, h2=h2, obs=obs)
+				D2Imat[dir2, dir1] = D2Imat[dir1, dir2]
+		return D2Imat
 
 	def I_forOpt(self, u_modes_unpacked):
-		assert(self.obs is not None)
 		if isinstance(self.prior, GaussianFourier2d):
 			return self.I(mor.mapOnRectangle(self.rect, "fourier", u_modes_unpacked.reshape((self.prior.N, self.prior.N))), self.obs)
 		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
-			return float(self.I(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(u_modes_unpacked)), self.obs))
+			return self.I(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(u_modes_unpacked)), self.obs)
+		else:
+			raise Exception("not a valid option")
 	
-	def find_uMAP(self, u0, nit=5000, nfev=5000):
+	def DI_forOpt(self, u_modes_unpacked):
+		if isinstance(self.prior, GaussianFourier2d):
+			return self.DI_vec_fourier(mor.mapOnRectangle(self.rect, "fourier", u_modes_unpacked.reshape((self.prior.N, self.prior.N))), self.obs)
+		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
+			return self.DI_vec_wavelet(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(u_modes_unpacked)), self.obs)
+		else:
+			raise Exception("not a valid option")
+	
+	def find_uMAP(self, u0, nit=5000, nfev=5000, method='Nelder-Mead'):
+		assert(self.obs is not None)
 		start = time.time()
 		u0_vec = None
 		if isinstance(self.prior, GaussianFourier2d):
 			u0_vec = u0.fouriermodes.flatten()
 		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
 			u0_vec = unpackWavelet(u0.waveletcoeffs)
-		res = scipy.optimize.minimize(self.I_forOpt, u0_vec, method='Nelder-Mead', options={'disp': True, 'maxiter': nit, 'maxfev': nfev})
+		
+		if method=='Nelder-Mead':
+			res = scipy.optimize.minimize(self.I_forOpt, u0_vec, method=method, options={'disp': True, 'maxiter': nit, 'maxfev': nfev})
+		elif method == 'CG':
+			# dirty hack to avoid overflow
+			If = lambda u: self.I_forOpt(u*0.0001)
+			DIf = lambda u: 0.0001*self.DI_forOpt(u*0.0001)
+			#res = scipy.optimize.minimize(self.I_forOpt, u0_vec, jac=self.DI_forOpt, method=method, options={'disp': True, 'maxiter': nit})
+			res = scipy.optimize.minimize(If, u0_vec, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})
+			res.x = res.x * 0.0001
+		else:
+			raise NotImplementedError("this optimization routine either doesn't exist or isn't supported yet")
 		end = time.time()
 		uOpt = None
 		if u0.inittype == "wavelet":
@@ -297,70 +364,84 @@ class inverseProblem():
 			if returnFull:
 				return uHistFull, PhiHist
 			return uHist
-	
-	def EnKF(self, obs, J, numit, gamma, retfull=False, N_more=False):
-		h = 1.0/numit
-		J_power = int(math.ceil(math.log(J, 4)))
-		J = 4**J_power
+			
+	def EnKF(self, obs, J, N=1, KL=False, pert=True, ensemble=None, randsearch=True):
+		beta = 0.1
+		h = 1/N
 		M = len(obs)
-		psi_wavelet = np.eye(J)
-		psis = []
-		for j in range(J):
-			psis.append(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(psi_wavelet[j, :].flatten())))	
-		us = psis
-		Gus = np.zeros((M, J))
-		yj = obs
-		obs_aug = np.tile(np.reshape(obs, (-1, 1)), (1, J))
-		Gamma = gamma*np.eye(M)
-		if retfull:
-			uHist = [us]
-		if N_more == False:
-			NN = numit
-		else:
-			NN = N_more
-		for n in range(NN):
+		if ensemble is not None:
+			us = ensemble
+		elif KL:
+			J_power = int(math.ceil(math.log(J, 4)))
+			J = 4**J_power
+			psi_wavelet = np.eye(J)
+			psis = []
 			for j in range(J):
-				Gus[:, j] = self.Gfnc(us[j])
+				psis.append(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(psi_wavelet[j, :].flatten())))	
+			us = psis
+		else:
+			us = [self.prior.sample() for j in range(J)]
+		vals = [np.array([self.I(u) for u in us])]
+		vals_mean = [np.mean(vals[-1])]
+		for n in range(N):		
+			if randsearch:
+				for j in range(J):
+					u = us[j]
+					prop = u*sqrt(1-beta**2) + self.prior.sample()*beta # pCN proposal
+					Phiu = self.Phi(u)
+					Phiprop = self.Phi(prop)
+					if Phiu >= Phiprop:
+						us[j] = prop
+					else:
+						rndnum = np.random.uniform(0, 1)
+						a = exp((n+1)*h*(Phiu-Phiprop))
+						if rndnum <= a:
+							us[j] = prop
 		
+			Gus = np.zeros((M, len(us)))
+			yj = obs
+			obs_aug = np.tile(np.reshape(obs, (-1, 1)), (1, len(us)))
+			Gamma = self.gamma*np.eye(M)
+			for j in range(len(us)):
+				Gus[:, j] = self.Gfnc(us[j])
 			G_mean = np.reshape(np.mean(Gus, axis=1), (-1,1))
 			Gterm = Gus - G_mean
 			u_mean = us[0]
-			for ind in range(1, J):
-				u_mean = u_mean + us[j]
-			u_mean = u_mean*(1/J)
-		
+			for ind in range(1, len(us)):
+				u_mean = u_mean + us[ind]
+			u_mean = u_mean*(1/len(us))
 			uterm = [uj - u_mean for uj in us]
-			yj = obs_aug + 0*np.random.normal(0, gamma, (M, J))
+			if pert:
+				yj = obs_aug + 1/h*np.random.normal(0, self.gamma, (M, len(us)))
+			else:
+				yj = obs_aug
 			d = yj - Gus
-		
-		
+	
 			Cpp = np.zeros((M, M))
 			v0 = np.reshape(Gterm[:, 0], (M, 1))
 			Cpp = np.dot(v0, v0.T)
-			for ind in range(1, J):
+			for ind in range(1, len(us)):
 				vind = np.reshape(Gterm[:, ind], (M, 1))
 				Cpp = Cpp + np.dot(vind, vind.T)
-			Cpp = Cpp/J
-		
-			x = np.linalg.solve(h*Cpp + Gamma, d)
-		
+			Cpp = Cpp/len(us)
+
+			x = np.linalg.solve(Cpp*h + Gamma, d)
 			Cup_x = []
-			for j in range(J):
+			for j in range(len(us)):
 				Cup_x.append(uterm[0]*np.dot(Gterm[:, 0], x[:, j]))
-				for ind in range(1, J):
+				for ind in range(1, len(us)):
 					Cup_x[-1] = Cup_x[-1] + uterm[ind]*np.dot(Gterm[:, ind], x[:, j])
-				Cup_x[-1] = Cup_x[-1]*(1/J)
+				Cup_x[-1] = Cup_x[-1]*(1/len(us))
 		
 			u_new = [u_old + Cup_x_j*h for (u_old, Cup_x_j) in zip(us, Cup_x)]
-			if retfull:
-				uHist.append(u_new)
+			u_new_mean = u_new[0]
+			for ind in range(1, len(us)):
+				u_new_mean = u_new_mean + u_new[ind]
+			vals.append(np.array([self.I(u) for u in u_new]))
+			vals_mean.append(np.mean(vals[-1]))
+			u_new_mean = u_new_mean*(1/len(us))
 			us = u_new
-		if retfull:
-			return uHist
-		else:
-			return us
-			
-
+		return u_new, u_new_mean, us, vals, vals_mean
 	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None, three_d=False):
 		if obspos is None:
 			obspos = self.obspos

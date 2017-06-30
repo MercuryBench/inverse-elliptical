@@ -225,7 +225,7 @@ class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
 	def covInnerProd(self, w1, w2):
 		j_besovprod = np.zeros((self.maxJ,))
 		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
-		for j in range(1, self.maxJ):
+		for j in range(1, min(self.maxJ, len(w1.waveletcoeffs), len(w2.waveletcoeffs))):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
 		return self.kappa*np.sum(j_besovprod)	
@@ -315,7 +315,8 @@ class GaussianWavelet(measure):
 	def covInnerProd(self, w1, w2):
 		j_besovprod = np.zeros((self.maxJ,))
 		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
-		for j in range(1, self.maxJ):
+		
+		for j in range(1, min(self.maxJ, len(w1.waveletcoeffs), len(w2.waveletcoeffs))):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber))
 		return np.sum(j_besovprod)
