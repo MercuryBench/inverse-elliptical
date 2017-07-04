@@ -147,7 +147,7 @@ class inverseProblem():
 			assert(self.obs is not None)
 			obs = self.obs
 		discrepancy = obs-self.Gfnc(u, Fu=Fu, obspos=obspos)
-		DG_of_u_h = self.DGfnc(u, h, obspos=obspos)
+		DG_of_u_h = self.DGfnc(u, h, obspos=obspos)	
 		return -1.0/(self.gamma**2)*np.dot(discrepancy, DG_of_u_h)		
 	
 	def D2Phi(self, u, h1, h2=None, obs=None, obspos=None, Fu=None):		
@@ -259,14 +259,22 @@ class inverseProblem():
 			u0_vec = unpackWavelet(u0.waveletcoeffs)
 		
 		if method=='Nelder-Mead':
-			res = scipy.optimize.minimize(self.I_forOpt, u0_vec, method=method, options={'disp': True, 'maxiter': nit, 'maxfev': nfev})
+			If = lambda u: self.I_forOpt(u)
+			res = scipy.optimize.minimize(If, u0_vec, method=method, options={'disp': True, 'maxiter': nit, 'maxfev': nfev})
 		elif method == 'CG':
 			# dirty hack to avoid overflow
-			If = lambda u: self.I_forOpt(u*0.0001)
-			DIf = lambda u: 0.0001*self.DI_forOpt(u*0.0001)
+			rate = 0.0001
+			If = lambda u: self.I_forOpt(u*rate)
+			DIf = lambda u: rate*self.DI_forOpt(u*rate)
 			#res = scipy.optimize.minimize(self.I_forOpt, u0_vec, jac=self.DI_forOpt, method=method, options={'disp': True, 'maxiter': nit})
-			res = scipy.optimize.minimize(If, u0_vec, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})
-			res.x = res.x * 0.0001
+			res = scipy.optimize.minimize(If, u0_vec/rate, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})
+			res.x = res.x * rate
+		elif method == 'BFGS':
+			rate = 0.01
+			If = lambda u: self.I_forOpt(u*rate)
+			DIf = lambda u: rate*self.DI_forOpt(u*rate)
+			res = scipy.optimize.minimize(If, u0_vec/rate, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})	
+			res.x = res.x * rate		
 		else:
 			raise NotImplementedError("this optimization routine either doesn't exist or isn't supported yet")
 		end = time.time()
@@ -282,8 +290,30 @@ class inverseProblem():
 		print(str(res.nfev) + " function evaluations")
 		print("Reduction of function value from " + str(self.I(u0)) + " to " + str(self.I(uOpt)))
 		return uOpt
-	
-	def randomwalk(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
+	def randomwalk_pCN(self, uStart, N, beta=0.1):
+		uList = [uStart]
+		uListUnique = [uStart]
+		u = uStart
+		Phiu = self.Phi(u)
+		PhiList = [Phiu]
+		for n in range(N):
+			prop = u*sqrt(1-beta**2) + self.prior.sample()*beta 
+			Phiprop = self.Phi(prop)
+			if Phiu >= Phiprop:
+				u = prop
+				Phiu = Phiprop
+				uListUnique.append(prop)
+			else:
+				rndnum = np.random.uniform(0, 1)
+				a = exp(Phiu-Phiprop)
+				if rndnum <= a:
+					u = prop
+					Phiu = Phiprop
+					uListUnique.append(prop)
+			uList.append(u)
+			PhiList.append(Phiu)
+		return uList, uListUnique, PhiList
+	def randomwalk_old(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
 		u = uStart
 		r = np.random.uniform(0, 1, N)
 		acceptionNum = 0
@@ -365,8 +395,7 @@ class inverseProblem():
 				return uHistFull, PhiHist
 			return uHist
 			
-	def EnKF(self, obs, J, N=1, KL=False, pert=True, ensemble=None, randsearch=True):
-		beta = 0.1
+	def EnKF(self, obs, J, N=1, KL=False, pert=True, ensemble=None, randsearch=True, beta = 0.1):
 		h = 1/N
 		M = len(obs)
 		if ensemble is not None:
