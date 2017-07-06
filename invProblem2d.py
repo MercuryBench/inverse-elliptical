@@ -14,6 +14,86 @@ import time, sys
 import scipy.optimize
 #from fenics import *
 
+def pickleIP(ip, filename="data_.pkl", uTruth=None, uOpt=None):
+	# This doesn't work and should not be used!!
+	data = {"rectp1": ip.rect.p1, "rectp2": ip.rect.p2, "rectresol": ip.rect.resol, "obspos": ip.obspos, "obs": ip.obs, "gamma": ip.gamma, "resol": ip.resol}
+	if type(ip.prior).__name__ == "GaussianFourier2d":
+		data["prior_type"] = "GaussianFourier2d"
+		data["prior_mean"] = ip.prior._mean
+		data["prior_alpha"] = ip.prior.alpha
+		data["prior_beta"] = ip.prior.beta
+	elif  type(ip.prior).__name__ == "GeneralizedGaussianWavelet2d":
+		data["prior_mean"] = ip.prior._mean
+		data["prior_kappa"] = ip.prior.kappa
+		data["prior_s"] = ip.prior.s
+		data["prior_maxJ"] = ip.prior.maxJ
+	else: 
+		raise NotImplementedError("not yet implemented")	
+	if uTruth is not None:
+		if uTruth.inittype == "handle": # can't manage handle, so use wavelet instead
+			data["uTruth_type"] = "wavelet"
+			data["uTruth_waveletcoeffs"] = uTruth.waveletcoeffs
+		elif uTruth.inittype == "expl":
+			data["uTruth_type"] = "expl"
+			data["uTruth_values"] = uTruth.values
+		elif uTruth.inittype == "fourier":
+			data["uTruth_type"] = "fourier"
+			data["uTruth_fouriermodes"] = uTruth.fouriermodes
+		elif uTruth.inittype == "wavelet":
+			data["uTruth_type"] = "wavelet"
+			data["uTruth_waveletcoeffs"] = uTruth.waveletcoeffs
+	uListForDict = []
+	if uOpt is not None:
+		if uOpt.inittype == "handle": # can't manage handle, so use wavelet instead
+			data["uOpt_type"] = "wavelet"
+			data["uOpt_waveletcoeffs"] = uOpt.waveletcoeffs
+		elif uOpt.inittype == "expl":
+			data["uOpt_type"] = "expl"
+			data["uOpt_values"] = uOpt.values
+		elif uOpt.inittype == "fourier":
+			data["uOpt_type"] = "fourier"
+			data["uOpt_fouriermodes"] = uOpt.fouriermodes
+		elif uOpt.inittype == "wavelet":
+			data["uOpt_type"] = "wavelet"
+			data["uOpt_waveletcoeffs"] = uOpt.waveletcoeffs
+	uListForDict = []
+	output = open(filename, 'wb')
+	pickle.dump(data, output)
+
+def pickleData(ip, u, uOpt=None, filename="data_.pkl"):
+	data = {"obspos": ip.obspos, "obs": ip.obs, "gamma": ip.gamma, "resol": ip.resol}
+	if u.inittype == "handle": # can't manage handle, so use wavelet instead
+		data["u_type"] = "wavelet"
+		data["u_waveletcoeffs"] = u.waveletcoeffs
+	elif u.inittype == "expl":
+		data["u_type"] = "expl"
+		data["u_values"] = u.values
+	elif u.inittype == "fourier":
+		data["u_type"] = "fourier"
+		data["u_fouriermodes"] = u.fouriermodes
+	elif u.inittype == "wavelet":
+		data["u_type"] = "wavelet"
+		data["u_waveletcoeffs"] = u.waveletcoeffs
+	if uOpt is not None:
+		if uOpt.inittype == "handle": # can't manage handle, so use wavelet instead
+			data["uOpt_type"] = "wavelet"
+			data["uOpt_waveletcoeffs"] = uOpt.waveletcoeffs
+		elif uOpt.inittype == "expl":
+			data["uOpt_type"] = "expl"
+			data["uOpt_values"] = uOpt.values
+		elif uOpt.inittype == "fourier":
+			data["uOpt_type"] = "fourier"
+			data["uOpt_fouriermodes"] = uOpt.fouriermodes
+		elif uOpt.inittype == "wavelet":
+			data["uOpt_type"] = "wavelet"
+			data["uOpt_waveletcoeffs"] = uOpt.waveletcoeffs
+	output = open(filename, 'wb')
+	pickle.dump(data, output)
+
+def unpickleData(filename="data_.pkl"):
+	pkl_file = open(filename, 'rb')
+	return pickle.load(pkl_file)
+	
 class inverseProblem():
 	def __init__(self, fwd, prior, gamma, obspos=None, obs=None):
 		# need: type(fwd) == fwdProblem, type(prior) == measure
@@ -25,7 +105,6 @@ class inverseProblem():
 		self.gamma = gamma
 		self.resol = self.rect.resol
 		self.numSolves = 0
-		
 	# Forward operators and their derivatives:	
 	def Ffnc(self, logkappa, pureFenicsOutput=False): # F is like forward, but uses logpermeability instead of permeability
 		# coords of mesh vertices
@@ -185,7 +264,7 @@ class inverseProblem():
 		return DIvec
 		
 	def DI_vec_fourier(self, u, obs, obspos=None, Fu=None):
-		numDir = len(u.fouriercoeffs.flatten())
+		numDir = len(u.fouriermodes.flatten())
 		DIvec = np.zeros((numDir,))
 		N = self.prior.N
 		for direction in range(numDir):
@@ -313,7 +392,7 @@ class inverseProblem():
 			uList.append(u)
 			PhiList.append(Phiu)
 		return uList, uListUnique, PhiList
-	def randomwalk_old(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
+	"""def randomwalk_old(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
 		u = uStart
 		r = np.random.uniform(0, 1, N)
 		acceptionNum = 0
@@ -393,7 +472,7 @@ class inverseProblem():
 				print("acception probability: " + str(acceptionNum/N))
 			if returnFull:
 				return uHistFull, PhiHist
-			return uHist
+			return uHist"""
 			
 	def EnKF(self, obs, J, N=1, KL=False, pert=True, ensemble=None, randsearch=True, beta = 0.1):
 		h = 1/N
@@ -473,6 +552,7 @@ class inverseProblem():
 		return u_new, u_new_mean, us, vals, vals_mean
 	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None, three_d=False):
 		if obspos is None:
+			assert (self.obspos is not None)
 			obspos = self.obspos
 		fig = plt.figure(figsize=(7,14))
 		plt.ion()
@@ -507,6 +587,8 @@ class inverseProblem():
 		plt.contourf(XX, YY, u.values, 30)
 		plt.colorbar()
 		plt.show()
+
+
 
 def plot3d(u):
 	fig = plt.figure()

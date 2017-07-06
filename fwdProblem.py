@@ -162,7 +162,7 @@ class linEllipt2dRectangle():
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
 		
 
-class linEllipt2d(): # should be obsolete after linEllipt2dRectangle
+"""class linEllipt2d(): # should be obsolete after linEllipt2dRectangle
 	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
 	def __init__(self, f, u_D, boundaryD, resol=4, xresol=7):
 		self.f = f
@@ -214,9 +214,9 @@ class linEllipt2d(): # should be obsolete after linEllipt2dRectangle
 		u_D_0 = Expression('0*x[0]', degree=2)
 		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
-		return moi2d.mapOnInterval("expl", vals)
+		return moi2d.mapOnInterval("expl", vals)"""
 		
-class sandbox(): # should be obsolete after linEllipt2dRectangle or should be redefined as a special case of linEllipt2dRectangle
+"""class sandbox(): # should be obsolete after linEllipt2dRectangle or should be redefined as a special case of linEllipt2dRectangle
 	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
 	def __init__(self, f, resol=4, xresol=7):
 		self.f = f
@@ -277,7 +277,7 @@ class sandbox(): # should be obsolete after linEllipt2dRectangle or should be re
 		u_D_0 = Expression('0*x[0]', degree=2)
 		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundaryD))
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.resol+1, 2**self.resol+1))
-		return moi2d.mapOnInterval("expl", vals)
+		return moi2d.mapOnInterval("expl", vals)"""
 		
 """if __name__ == "__main__":
 	if False: # 1d case

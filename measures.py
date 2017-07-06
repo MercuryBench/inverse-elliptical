@@ -198,7 +198,55 @@ class GaussianFourier2d(measure):
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self"""
 
-class GeneralizedGaussianWavelet2d(measure): # NEWNEWNEW
+class Besov11Wavelet(measure): 
+	# A non-Gaussian measure with covariance operator diagonalizing over wavelet basis, with Besov-prior-asymptotic (Laplace) coefficients 
+	def __init__(self, rect, kappa, s, maxJ):
+		assert isinstance(rect, Rectangle)
+		self.rect = rect
+		self.kappa = kappa
+		self.kappa_calc = kappa**(-0.5)
+		self.s = s
+		self.maxJ = maxJ
+		assert(maxJ <= self.rect.resol) # else to high resolution for rectangle
+		self.multiplier = np.array([2**(-j*(self.s-1)) for j in range(maxJ-1)])
+		
+		modes1 = [np.array([[0.0]])]
+		modes2 = ([[np.zeros((2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
+		self._mean = modes1 + modes2
+		
+	def sample(self):
+		modes1 = [np.array([[0.0]])]
+		modes2 = ([[self.kappa_calc*self.multiplier[j]*np.random.laplace(0, 2, (2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)])
+		
+		modes = modes1 + modes2# + modesrest
+		u = mor.mapOnRectangle(self.rect, "wavelet", modes)
+		return u
+	
+	def covInnerProd(self, w1, w2):
+		raise NotImplementedError("no inner product structure for B11 prior!")
+	
+	def cumcovInnerProd(self, w1, w2):
+		raise NotImplementedError("no inner product structure for B11 prior!")
+
+	def normpart(self, u):
+		j_besovterm = np.zeros((self.maxJ,))
+		j_besovterm[0] = abs(u.waveletcoeffs[0])
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovterm[j] = np.sum((abs(u.waveletcoeffs[j][0])+abs(u.waveletcoeffs[j][1])+abs(u.waveletcoeffs[j][2]))*2**(jnumber*(self.s-1)))
+		return self.kappa**(0.5)*np.cumsum(j_besovprod)
+	def norm(self, u):
+		return self.normpart(u)
+		
+	@property
+	def mean(self):
+		return self._mean
+	
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		return self
+
+class GeneralizedGaussianWavelet2d(measure): 
 	# A Gaussian measure with covariance operator diagonalizing over wavelet basis, with Besov-prior-asymptotic (but normal) coefficients 
 	def __init__(self, rect, kappa, s, maxJ):
 		assert isinstance(rect, Rectangle)
