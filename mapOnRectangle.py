@@ -284,14 +284,14 @@ class mapOnRectangle():
 					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
-					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) + m.handle(x))
+					return mapOnRectangle(self.rect, "handle", lambda x, y: self.handle(x, y) + m.handle(x, y))
 				else:
 					return mapOnRectangle(self.rect, "expl", self.values + m.values)
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f + number
 			if self.inittype == "handle":
-				return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) + m)
+				return mapOnRectangle(self.rect, "handle", lambda x, y: self.handle(x, y) + m)
 			else:
 				return mapOnRectangle(self.rect, "expl", self.values + m)
 	
@@ -311,14 +311,14 @@ class mapOnRectangle():
 					return mapOnRectangle(self.rect, "expl", self.values - m.values)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
-					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m.handle(x))
+					return mapOnRectangle(self.rect, "handle", lambda x, y: self.handle(x, y) - m.handle(x, y))
 				else:
 					return mapOnRectangle(self.rect, "expl", self.values - m.values)
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f - number
 			if self.inittype == "handle":
-				return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) - m)
+				return mapOnRectangle(self.rect, "handle", lambda x, y: self.handle(x, y) - m)
 			else:
 				return mapOnRectangle(self.rect, "expl", self.values - m)
 	
@@ -332,14 +332,14 @@ class mapOnRectangle():
 				return mapOnRectangle(self.rect, "expl", self.values * m.values)
 			elif self.inittype == "handle":
 				if m.inittype == "fourier" or m.inittype == "handle":
-					return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) * m.handle(x))
+					return mapOnRectangle(self.rect, "handle", lambda x, y: self.handle(x, y) * m.handle(x, y))
 				else:
 					return mapOnRectangle(self.rect, "expl", self.values * m.values)
 			else:
 				raise Exception("Wrong value for self.inittype in __add__")
 		else: # case f * number
 			if self.inittype == "handle":
-				return mapOnRectangle(self.rect, "handle", lambda x: self.handle(x) * m)
+				return mapOnRectangle(self.rect, "handle", lambda x, y: self.handle(x, y) * m)
 			elif self.inittype == "wavelet":
 				return mapOnRectangle(self.rect, "wavelet", packWavelet(unpackWavelet(self.waveletcoeffs)*m))
 			elif self.inittype == "fourier":

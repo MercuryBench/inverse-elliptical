@@ -43,18 +43,41 @@ def boundary_D_boolean(x): # special Dirichlet boundary condition
 f = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-.6)**2 + (y-.85)**2) < 0.1**2)*(-20.0) + (((x-.2)**2 + (y-.75)**2) < 0.1**2)*20.0)
 
 fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
-m1 = GeneralizedGaussianWavelet2d(rect, 0.001, 0.5, 5)
+m1 = GeneralizedGaussianWavelet2d(rect, 0.00001, 0.5, 5)
 invProb = inverseProblem(fwd, m1, gamma)
 
-uTruth = m1.sample()
+
 obspos = np.random.uniform(0, 1, (2, N_obs))
 obspos = [obspos[0,:], obspos[1, :]]
 invProb.obspos = obspos
+
+uTruth = mor.mapOnRectangle(rect, "handle", lambda x, y: myUTruth(x, y))
 obs = invProb.Gfnc(uTruth) + np.random.normal(0, gamma, (N_obs,))
+invProb.obs = obs
 invProb.plotSolAndLogPermeability(uTruth, obs=obs)
 
-uTruth2 = mor.mapOnRectangle(rect, "handle", lambda x, y: myUTruth(x, y))
-obs2 = invProb.Gfnc(uTruth2) + np.random.normal(0, gamma, (N_obs,))
-invProb.plotSolAndLogPermeability(uTruth2, obs=obs2)
+uTruth_trunc = mor.mapOnRectangle(rect, "wavelet", uTruth.waveletcoeffs[0:m1.maxJ])
+invProb.plotSolAndLogPermeability(uTruth_trunc, obs=obs)
 
-uTruth2_trunc = mor.mapOnRectangle(rect, "wavelet", uTruth2.waveletcoeffs[0:5])
+print("squared Cameron-Martin norm of ground truth: " + str(invProb.prior.normpart(uTruth)))
+print("squared misfit of ground Truth: " + str(invProb.Phi(uTruth, obs)))
+
+print("squared Cameron-Martin norm of truncated ground truth: " + str(invProb.prior.normpart(uTruth_trunc)))
+print("squared misfit of truncated ground Truth: " + str(invProb.Phi(uTruth_trunc, obs)))
+
+import time
+start = time.time();invProb.Ffnc(uTruth);end = time.time()
+print("solve time: " + str(end-start))
+
+
+u0 = mor.mapOnRectangle(rect, "wavelet", m1._mean)
+uOpt = invProb.find_uMAP(u0, nit=100000, nfev=100000, method='Nelder-Mead')
+uOpt = invProb.find_uMAP(u0, nit=10, nfev=100, method='CG')
+
+
+
+def unitvec(N, k):
+	temp = np.zeros((N,))
+	temp[k] = 1.0
+	return temp
+

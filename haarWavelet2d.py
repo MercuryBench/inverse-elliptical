@@ -83,12 +83,12 @@ def waveletanalysis(f):
 
 # wavelet synthesis of wavelet decomposition (inverse operation of waveletanalysis)
 
-def waveletanalysis2d(f):
+def waveletanalysis2d_old(f):
 	# f needs to be quadratic with 2**J x 2**J entries
 	a = [f]
 	d = [0]
 	J = int(log(f.shape[0], 2))
-	assert (J == int(log(f.shape[0], 2)))
+	assert (J == int(log(f.shape[1], 2)))
 	for j in range(J):
 		a_last = a[-1]
 		temp1 = (a_last[0::2, :] + a_last[1::2, :])/2
@@ -133,7 +133,7 @@ def waveletsynthesis(w,xs=None):
 		#return f/2**(J/2)"""
 	return f
 
-def waveletsynthesis2d(w, resol=None):
+def waveletsynthesis2d_old(w, resol=None):
 	if resol is None:
 		J = len(w) - 1
 	else:
@@ -159,7 +159,53 @@ def waveletsynthesis2d(w, resol=None):
 				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = 2**(-j)
 				f = f + w_hori[k,l]*psivec1 + w_vert[k, l]*psivec2 + w_diag[k,l]*psivec3
 	return f
-			
+
+def waveletsynthesis2d(w, resol=None):
+	if resol is None:
+		J = len(w) - 1
+	else:
+		J = max(resol, len(w) - 1)
+	f = np.zeros((2**J, 2**J))+ w[0]
+	for j in range(1, len(w)):
+		w_hori = w[j][0] # is quadratic
+		w_vert = w[j][1]
+		w_diag = w[j][2]
+		(maxK, maxL) = w_hori.shape
+		for k in range(maxK):
+			for l in range(maxL):
+				psivec1 = np.zeros((2**J, 2**J))
+				psivec1[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l:2**(J-j+1)*(l+1)] = 2**(j-1)
+				psivec1[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*(l+1)] = -2**(j-1)
+				psivec2 = np.zeros((2**J, 2**J))
+				psivec2[2**(J-j+1)*k:2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = 2**(j-1)
+				psivec2[2**(J-j+1)*k:2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = -2**(j-1)
+				psivec3 = np.zeros((2**J, 2**J))
+				psivec3[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = 2**(j-1)
+				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l:2**(J-j+1)*l + 2**(J-j)] = -2**(j-1)
+				psivec3[2**(J-j+1)*k:2**(J-j+1)*k + 2**(J-j), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = -2**(j-1)
+				psivec3[2**(J-j+1)*k + 2**(J-j):2**(J-j+1)*(k+1), 2**(J-j+1)*l + 2**(J-j):2**(J-j+1)*(l+1)] = 2**(j-1)
+				f = f + w_hori[k,l]*psivec1 + w_vert[k, l]*psivec2 + w_diag[k,l]*psivec3
+	return f
+
+def waveletanalysis2d(f):
+	a = [f]
+	d = [0]		
+	J = int(log(f.shape[0], 2))
+	for j in range(J):
+		a_last = a[-1]
+		temp1 = (a_last[0::2, :] + a_last[1::2, :])/2
+		a.append((temp1[:, 0::2] + temp1[:, 1::2])/2)
+		
+		temp2 = (a_last[0::2, :] - a_last[1::2, :])/2
+		d1 = (temp2[:, 0::2] + temp2[:, 1::2])/(2**(J-j))
+		d2 = (temp1[:, 0::2] - temp1[:, 1::2])/(2**(J-j))
+		d3 = (temp2[:, 0::2] - temp2[:, 1::2])/(2**(J-j))
+		d.append([d1,d2,d3])
+	w = [a[-1]]
+	for j in range(J):
+		w.append(d[J-j])
+	return w
+
 def getApprox2d(w):
 	J = len(w) - 1
 	f = np.zeros((2**J, 2**J))+ w[0]

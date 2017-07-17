@@ -335,7 +335,60 @@ class GaussianFourierExpl(measure):
 	def gaussApprox(self): # Gaussian approx of Gaussian is identity
 		return self
 
-class GaussianWavelet(measure):
+
+class GaussianWavelet_new(measure): 
+	def __init__(self, kappa, s, maxJ):
+		self.kappa = kappa
+		self.maxJ = maxJ # cutoff frequency
+		self.s = s
+		self.kappa_calc = kappa**(-0.5)
+		self.multiplier = np.array([2**(-j*self.s) for j in range(maxJ-1)])
+		
+	def sample(self, M=1):
+		if not M == 1:
+			raise NotImplementedError()
+			return
+		coeffs = [self.kappa_calc*self.multiplier[j]*np.random.normal(0, 1, (2**j,)) for j in range(self.maxJ-1)]
+		#coeffs = [np.random.laplace(0, self.kappa * 2**(-j*0.5), (2**j,)) for j in range(self.maxJ)]
+		
+		coeffs = np.concatenate((np.array([0]), coeffs)) # zero mass condition
+		return moi.mapOnInterval("wavelet", coeffs, numSpatialPoints = 2**(self.maxJ+1), interpolationdegree = 1)
+		
+	"""def normpart(self, w):
+		j_besovnorm = np.zeros((self.maxJ,))
+		for j in range(self.maxJ):
+			j_besovnorm[j] = np.sum((w.waveletcoeffs[j])**2*4**(j))
+		return math.sqrt(np.sum(j_besovnorm))"""
+	def normpart(self, u):
+		return 1.0/2*self.covInnerProd(u, u)*self.kappa
+	def norm(self, u):
+		return math.sqrt(self.covInnerProd(u, u))
+	
+	def covInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		
+		for j in range(1, min(self.maxJ, len(w1.waveletcoeffs), len(w2.waveletcoeffs))):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber))
+		return np.sum(j_besovprod)
+		
+	def cumcovInnerProd(self, w1, w2):
+		j_besovprod = np.zeros((self.maxJ,))
+		j_besovprod[0] = w1.waveletcoeffs[0]*w2.waveletcoeffs[0]
+		for j in range(1, self.maxJ):
+			jnumber = j-1 # account for 0th mode (special)
+			j_besovprod[j] = np.sum((w1.waveletcoeffs[j]*w2.waveletcoeffs[j])*4**(jnumber))
+		return np.cumsum(j_besovprod)
+	
+	@property
+	def mean(self):
+		return np.concatenate((np.array([0]), [np.zeros((2**j,)) for j in range(self.maxJ-1)]))
+	@property
+	def gaussApprox(self): # Gaussian approx of Gaussian is identity
+		raise NotImplementedError("Gaussian approximation for Wavelet prior not yet implemented")
+
+class GaussianWavelet(measure): # ALT!!!!
 	def __init__(self, kappa, maxJ):
 		self.kappa = kappa
 		self.maxJ = maxJ # cutoff frequency

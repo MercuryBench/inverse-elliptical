@@ -40,7 +40,7 @@ uTruth = prior.sample()
 
 obs = invProb.Gfnc(uTruth) + np.random.normal(0, gamma, (N_obs,))
 invProb.obs = obs
-invProb.plotSolAndLogPermeability(uTruth, obs=obs)
+invProb.plotSolAndLogPermeability(uTruth, obs=obs, obspos=obspos)
 
 wc_unpacked = unpackWavelet(uTruth.waveletcoeffs)
 

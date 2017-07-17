@@ -349,7 +349,7 @@ class inverseProblem():
 			res = scipy.optimize.minimize(If, u0_vec/rate, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})
 			res.x = res.x * rate
 		elif method == 'BFGS':
-			rate = 0.01
+			rate = 0.001
 			If = lambda u: self.I_forOpt(u*rate)
 			DIf = lambda u: rate*self.DI_forOpt(u*rate)
 			res = scipy.optimize.minimize(If, u0_vec/rate, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})	
@@ -550,7 +550,7 @@ class inverseProblem():
 			u_new_mean = u_new_mean*(1/len(us))
 			us = u_new
 		return u_new, u_new_mean, us, vals, vals_mean
-	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None, three_d=False):
+	def plotSolAndLogPermeability(self, u, sol=None, obs=None, obspos=None, three_d=False, save=None):
 		if obspos is None:
 			assert (self.obspos is not None)
 			obspos = self.obspos
@@ -587,6 +587,8 @@ class inverseProblem():
 		plt.contourf(XX, YY, u.values, 30)
 		plt.colorbar()
 		plt.show()
+		if save is not None:
+			plt.savefig("./" + save)
 
 
 

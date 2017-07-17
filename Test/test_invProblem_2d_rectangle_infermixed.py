@@ -15,7 +15,7 @@ from measures import *
 rect = Rectangle((0,0), (180,78), resol=6)
 gamma = 0.001
 
-N_obs = 100
+N_obs = 1000
 
 u_D = mor.mapOnRectangle(rect, "handle", lambda x, y: 0*x)
 
@@ -29,7 +29,7 @@ f = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-40)**2 + (y-20)**2) < 4
 
 fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
 prior1 = GaussianFourier2d(rect, np.zeros((7,7)), 1.0, 3.0)
-prior2 = GeneralizedGaussianWavelet2d(rect, 1.0, 1.0, 5)
+prior2 = GeneralizedGaussianWavelet2d(rect, 1.0, 1.0, 3)
 
 invProb1 = inverseProblem(fwd, prior1, gamma)
 invProb2 = inverseProblem(fwd, prior2, gamma)
@@ -47,10 +47,6 @@ uTruth1 = uTruth1 * (1.0/np.max(np.abs(uTruth1.values)))
 uTruth2 = uTruth2 * (1.0/np.max(np.abs(uTruth2.values)))
 
 
-invProb1.plotSolAndLogPermeability(uTruth1)
-
-invProb2.plotSolAndLogPermeability(uTruth2)
-
 uTruth = uTruth1 + uTruth2
 
 
@@ -58,26 +54,28 @@ kTruth = mor.mapOnRectangle(invProb1.rect, "handle", lambda x,y: np.exp(uTruth.h
 
 sol = invProb1.Ffnc(uTruth)
 
-plot3d(kTruth)
-plot3d(sol)
 
 obs = invProb1.Gfnc(uTruth) + np.random.normal(0, gamma, (N_obs,))
+
+prior = GeneralizedGaussianWavelet2d(rect, 0.01, 1.0, 5)
+invProb = inverseProblem(fwd, prior, gamma)
+invProb.obs = obs
+invProb.obspos = obspos
 
 invProb1.obs = obs
 invProb2.obs = obs
 invProb1.plotSolAndLogPermeability(uTruth, obs=obs)
 
 u01 = mor.mapOnRectangle(rect, "fourier", prior1._mean)
-u02 = mor.mapOnRectangle(rect, "wavelet", prior2._mean)
+u02 = mor.mapOnRectangle(rect, "wavelet", prior._mean)
 
-import time
-
-start = time.time(); invProb1.Ffnc(u01); end=time.time()
-print(end-start)
-start = time.time(); invProb2.Ffnc(u02); end=time.time()
-print(end-start)
+u_new, u_new_mean, us = invProb.EnKF(obs, 256, KL=False)
+vals_new = np.array([invProb.I(uu, obs) for uu in u_new])
+vals = np.array([invProb.I(uu, obs) for uu in us])
+invProb.plotSolAndLogPermeability(u_new_mean)
+#plt.figure();plt.subplot(2,1,1);plt.hist(vals,50);plt.subplot(2,1,2);plt.hist(vals_new,50)
 #uOpt1 = invProb1.find_uMAP(u01, 400000, 400000)
-#uOpt2 = invProb2.find_uMAP(u02, 400000, 400000)
+#uOpt = invProb.find_uMAP(u02, 4000, 4000)
 
 """# now cross-checking: try to fit gaussians to wavelets and vice versa
 obs1 = invProb1.Gfnc(uTruth2) + np.random.normal(0, gamma, (N_obs,))
