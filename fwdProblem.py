@@ -120,6 +120,43 @@ class linEllipt2dRectangle():
 			return uSol
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
+	
+	def evalInnerProdListPhi(self, phis, u, v): # computes \int phi * nabla(u)*nabla(v)
+		lst = []
+		if isinstance(u, mor.mapOnRectangle):
+			u = morToFenicsConverter(u, self.mesh, self.V)
+		if isinstance(v, mor.mapOnRectangle):
+			v = morToFenicsConverter(v, self.mesh, self.V)
+		for phi in phis:
+			if isinstance(phi, mor.mapOnRectangle):
+				phi = morToFenicsConverter(phi, self.mesh, self.V)			
+			lst.append(assemble(phi*dot(grad(u),grad(v))*dx))
+		return lst
+		
+	
+	def solveWithDiracRHS(self, k, ws, xs, pureFenicsOutput=False): # solves -div(k*nabla(y)) = sum_i w_i*dirac_{x_i}
+		set_log_level(40)
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverter(k, self.mesh, self.V)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		delta = []
+		for w, x in zip(ws, xs):
+			delta.append(PointSource(self.V, Point(x[0], x[1]), w))
+		
+		a = k*dot(grad(u), grad(v))*dx
+		L = Constant(0)*v*dx
+		A, b = assemble_system(a, L, self.bc)
+		for d in delta:
+			d.apply(b)
+		
+		uSol = Function(self.V)
+		solve(A, uSol.vector(), b)
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
+		
 		
 	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
 		if isinstance(k, mor.mapOnRectangle):

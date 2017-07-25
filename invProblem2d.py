@@ -328,6 +328,26 @@ class inverseProblem():
 		else:
 			raise Exception("not a valid option")
 	
+	def gradientI_adjoint_wavelet(self, u, Fu=None):
+		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
+		DIvec = np.zeros((numDir,))
+		assert(self.obspos is not None)		
+		assert(self.obs is not None)
+		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(u.handle(x,y)))
+		if Fu is None:
+			Fu = self.Ffnc(u)
+		yAtObspos = Fu.handle(self.obspos[0], self.obspos[1])
+		weights = -1/self.gamma**2 * (self.obs - yAtObspos)
+		lambdahat = self.fwd.solveWithDiracRHS(kappa, weights, self.obspos, pureFenicsOutput=True)
+		hs = []
+		for direction in range(numDir):
+			temp = np.zeros((numDir,))
+			temp[direction] = 1
+			hs.append(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp)))
+		DIvec = np.array(self.fwd.evalInnerProdListPhi(hs, Fu, lambdahat)) 
+		return DIvec
+			
+	
 	def find_uMAP(self, u0, nit=5000, nfev=5000, method='Nelder-Mead'):
 		assert(self.obs is not None)
 		start = time.time()

@@ -105,3 +105,4 @@ plt.plot(hfactor, Ivals, '.-')
 plt.plot(hfactor, Ivals_D, 'r.-')
 plt.plot(hfactor, Ivals_D2, 'g.-')
 
+DD = invProb.gradientI_adjoint_wavelet(u)
