@@ -13,6 +13,7 @@ from fenics import *
 tol = 1E-14
 
 class linEllipt():
+	# 1d class for the linear elliptical forward problem; might get replaced by fenics routine soon
 	# model: -(k*p')' = g, with p(0) = pminus, p(1) = pplus, for p
 	def __init__(self, g, pplus, pminus):
 		self.g = g
@@ -62,6 +63,7 @@ class linEllipt():
 			return p
 
 def morToFenicsConverter(f, mesh, V):
+	# converts a mapOnRectangle function to a fenics function on a mesh. Needed for compatibility
 	coords = mesh.coordinates().T
 
 	# evaluate function in vertices
@@ -73,14 +75,35 @@ def morToFenicsConverter(f, mesh, V):
 	fnc.vector().set_local(vals[dof_to_vertex_map(V)])
 	return fnc
 
-
+def morToFenicsConverterHigherOrder(f, mesh, V):
+	# get coordinates of all degrees of freedom
+	dof_coord_raw = V.tabulate_dof_coordinates()
+	dof_coord_x = np.array([dof_coord[2*k] for k in range(289)]).reshape((-1,1))
+	dof_coord_y = np.array([dof_coord[2*k+1] for k in range(289)]).reshape((-1,1))
+	dof_coords = np.concatenate((dof_coord_x, dof_coord_y), axis=1)
+	
+	# compute function values on all degrees of freedom
+	vals = f.handle(dof_coords)
+	
+	# kind of like dof_to_vertex_map
+	dofs = V.dofmap().dofs()
+	fnc = Function(V)
+	fnc.vector().set_local(vals[dofs])
+	return fnc
+	
 class linEllipt2dRectangle():
+	# main class for the linear elliptical 2d problem on a rectangular domain
+	# can handle several kinds of PDE operations which are needed by higher-level classes
+	# in principle this should be the only class in the inverse problem setting that can "see" fenics functionality
+	# (unless for debugging or testing purposes)
 	def __init__(self, rect, f, u_D, boundary_D_boolean):
 		assert isinstance(rect, Rectangle)
 		self.rect = rect
 		self.mesh = RectangleMesh(Point(rect.x1,rect.y1), Point(rect.x2,rect.y2), 2**rect.resol, 2**rect.resol)
 		self.V = FunctionSpace(self.mesh, 'P', 1)
 		
+		# if the forcing term and/or the dirichlet boundary data are not already in fenics type, convert
+				
 		if isinstance(f, mor.mapOnRectangle):
 			self.f = morToFenicsConverter(f, self.mesh, self.V)
 		else:
@@ -91,21 +114,38 @@ class linEllipt2dRectangle():
 		else:
 			self.u_D = u_D
 		
+		self.boundary_markers = FacetFunction("size_t", self.mesh)
+
+		# the following implements Dirichlet boundary conditions with value u_D on the boundary specified by boundary_D_boolean 
+		# (and the pre-implemented on_boundary functionality)
+		# the rest is assumed 0-Neumann
 		
+		class BoundaryDirichlet(SubDomain):
+			tol = 1E-14
+			def inside(self, x, on_boundary):
+				return on_boundary and boundary_D_boolean(x)
+		class BoundaryNeumann(SubDomain):
+			tol = 1E-14
+			def inside(self, x, on_boundary):
+				return on_boundary and not boundary_D_boolean(x)
+
+
+		bD = BoundaryDirichlet()
+		bD.mark(self.boundary_markers, 1)
+		bN = BoundaryNeumann()
+		bN.mark(self.boundary_markers, 2)
+
+		boundary_conditions = {1: {'Dirichlet': self.u_D}, 2: {'Neumann':   Constant(0.0)}}
+
+		bcs = []
+		for i in boundary_conditions:
+			if 'Dirichlet' in boundary_conditions[i]:
+				bc = DirichletBC(self.V, boundary_conditions[i]['Dirichlet'], self.boundary_markers, i)
+				bcs.append(bc)
 		
-		def boundary_D(x, on_boundary):
-			if on_boundary:
-				if boundary_D_boolean(x):
-					return True
-				else:
-					return False
-			else:
-				return False
-				
-		self.boundary_D = boundary_D
-		self.bc = DirichletBC(self.V, self.u_D, self.boundary_D)
+		self.bc = bcs				
 	
-	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y	
+	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y	with b.c. as specified in initialization
 		set_log_level(40)
 		if isinstance(k, mor.mapOnRectangle):
 			k = morToFenicsConverter(k, self.mesh, self.V)
@@ -121,7 +161,7 @@ class linEllipt2dRectangle():
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
 	
-	def evalInnerProdListPhi(self, phis, u, v): # computes \int phi * nabla(u)*nabla(v)
+	def evalInnerProdListPhi(self, phis, u, v): # computes \int phi * nabla(u)*nabla(v) for all phi in phis
 		lst = []
 		if isinstance(u, mor.mapOnRectangle):
 			u = morToFenicsConverter(u, self.mesh, self.V)
@@ -134,7 +174,7 @@ class linEllipt2dRectangle():
 		return lst
 		
 	
-	def solveWithDiracRHS(self, k, ws, xs, pureFenicsOutput=False): # solves -div(k*nabla(y)) = sum_i w_i*dirac_{x_i}
+	def solveWithDiracRHS(self, k, ws, xs, pureFenicsOutput=False): # solves -div(k*nabla(y)) = sum_i w_i*dirac_{x_i} with homogenous bcs
 		set_log_level(40)
 		if isinstance(k, mor.mapOnRectangle):
 			k = morToFenicsConverter(k, self.mesh, self.V)
@@ -146,7 +186,7 @@ class linEllipt2dRectangle():
 		
 		a = k*dot(grad(u), grad(v))*dx
 		L = Constant(0)*v*dx
-		A, b = assemble_system(a, L, self.bc)
+		A, b = assemble_system(a, L, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))
 		for d in delta:
 			d.apply(b)
 		
@@ -156,7 +196,16 @@ class linEllipt2dRectangle():
 			return uSol
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
-		
+	
+	
+	
+	
+	
+	
+	
+	
+	def evalInnerProd(self, k, u, v): # evaluate \int k * nabla(u)*nabla(v) over Omega
+		return assemble(k*dot(grad(u),grad(v))*dx)
 		
 	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
 		if isinstance(k, mor.mapOnRectangle):
@@ -173,7 +222,8 @@ class linEllipt2dRectangle():
 		a = k*dot(grad(u), grad(v))*dx
 		uSol = Function(self.V)
 		u_D_0 = Expression('0*x[0]', degree=2)
-		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundary_D))#
+		solve(a == L, uSol, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))#DirichletBC(self.V, u_D_0, self.boundary_D))#
+		
 		if pureFenicsOutput:
 			return uSol
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
@@ -194,7 +244,7 @@ class linEllipt2dRectangle():
 		a = k*dot(grad(u), grad(v))*dx
 		uSol = Function(self.V)
 		u_D_0 = Expression('0*x[0]', degree=2)
-		solve(a == L, uSol, DirichletBC(self.V, u_D_0, self.boundary_D))
+		solve(a == L, uSol, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))#DirichletBC(self.V, u_D_0, self.boundary_D))
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
 		

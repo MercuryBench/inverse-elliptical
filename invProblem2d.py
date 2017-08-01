@@ -14,52 +14,6 @@ import time, sys
 import scipy.optimize
 #from fenics import *
 
-def pickleIP(ip, filename="data_.pkl", uTruth=None, uOpt=None):
-	# This doesn't work and should not be used!!
-	data = {"rectp1": ip.rect.p1, "rectp2": ip.rect.p2, "rectresol": ip.rect.resol, "obspos": ip.obspos, "obs": ip.obs, "gamma": ip.gamma, "resol": ip.resol}
-	if type(ip.prior).__name__ == "GaussianFourier2d":
-		data["prior_type"] = "GaussianFourier2d"
-		data["prior_mean"] = ip.prior._mean
-		data["prior_alpha"] = ip.prior.alpha
-		data["prior_beta"] = ip.prior.beta
-	elif  type(ip.prior).__name__ == "GeneralizedGaussianWavelet2d":
-		data["prior_mean"] = ip.prior._mean
-		data["prior_kappa"] = ip.prior.kappa
-		data["prior_s"] = ip.prior.s
-		data["prior_maxJ"] = ip.prior.maxJ
-	else: 
-		raise NotImplementedError("not yet implemented")	
-	if uTruth is not None:
-		if uTruth.inittype == "handle": # can't manage handle, so use wavelet instead
-			data["uTruth_type"] = "wavelet"
-			data["uTruth_waveletcoeffs"] = uTruth.waveletcoeffs
-		elif uTruth.inittype == "expl":
-			data["uTruth_type"] = "expl"
-			data["uTruth_values"] = uTruth.values
-		elif uTruth.inittype == "fourier":
-			data["uTruth_type"] = "fourier"
-			data["uTruth_fouriermodes"] = uTruth.fouriermodes
-		elif uTruth.inittype == "wavelet":
-			data["uTruth_type"] = "wavelet"
-			data["uTruth_waveletcoeffs"] = uTruth.waveletcoeffs
-	uListForDict = []
-	if uOpt is not None:
-		if uOpt.inittype == "handle": # can't manage handle, so use wavelet instead
-			data["uOpt_type"] = "wavelet"
-			data["uOpt_waveletcoeffs"] = uOpt.waveletcoeffs
-		elif uOpt.inittype == "expl":
-			data["uOpt_type"] = "expl"
-			data["uOpt_values"] = uOpt.values
-		elif uOpt.inittype == "fourier":
-			data["uOpt_type"] = "fourier"
-			data["uOpt_fouriermodes"] = uOpt.fouriermodes
-		elif uOpt.inittype == "wavelet":
-			data["uOpt_type"] = "wavelet"
-			data["uOpt_waveletcoeffs"] = uOpt.waveletcoeffs
-	uListForDict = []
-	output = open(filename, 'wb')
-	pickle.dump(data, output)
-
 def pickleData(ip, u, uOpt=None, filename="data_.pkl"):
 	data = {"obspos": ip.obspos, "obs": ip.obs, "gamma": ip.gamma, "resol": ip.resol}
 	if u.inittype == "handle": # can't manage handle, so use wavelet instead
@@ -107,64 +61,25 @@ class inverseProblem():
 		self.numSolves = 0
 	# Forward operators and their derivatives:	
 	def Ffnc(self, logkappa, pureFenicsOutput=False): # F is like forward, but uses logpermeability instead of permeability
-		# coords of mesh vertices
-		#coords = self.fwd.mesh.coordinates().T
-
-		# evaluate permeability in vertices
-		#vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
+		# so: F maps logpermeability to solution of PDE (don't confuse with F in Sullivan's notation, which is the differential operator)
 		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
-		#kappa = Function(self.fwd.V)
-		#kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
 		ret = self.fwd.solve(kappa, pureFenicsOutput=pureFenicsOutput)
 		self.numSolves += 1
 		
 		return ret
 	
-	def DFfnc(self, logkappa, h, F_logkappa=None): # y is probably not used right here
-		#assert h.inittype == "wavelet"
+	def DFfnc(self, logkappa, h, F_logkappa=None): # Frechet derivative of F in logkappa in direction h. FIXME: logkappa here, u further down
 		if F_logkappa is None:
 			F_logkappa = self.Ffnc(logkappa, pureFenicsOutput=True)
-		"""coords = self.fwd.mesh.coordinates().T
-
-		# evaluate permeability in vertices
-		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
-		vals1 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h.handle(coords[0, :], coords[1, :])
-		
-		kappa = Function(self.fwd.V)
-		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
-		kappa1 = Function(self.fwd.V)
-		kappa1.vector().set_local(vals1[dof_to_vertex_map(self.fwd.V)])"""
 		
 		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
 		kappa1 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h.handle(x,y))
 		
-		
-		"""divy1, divy2 = moi2d.divergence(y)
-		temp1 = h.values*np.exp(logkappa.values)*divy1
-		temp2 = h.values*np.exp(logkappa.values)*divy2
-		divx1, _ = moi2d.divergence(temp1)
-		_, divx2 = moi2d.divergence(temp2)
-		rhs = moi2d.mapOnInterval("expl", divx1 + divx2)"""
 		return self.fwd.solveWithHminus1RHS(kappa, kappa1, F_logkappa)
 	
-	def D2Ffnc(self, logkappa, h1, h2=None, F_logkappa=None): # funktioniert noch nicht!
+	def D2Ffnc(self, logkappa, h1, h2=None, F_logkappa=None): # second Frechet derivative of F in logkappa. FIXME: logkappa here, u further down
 		if F_logkappa is None:
 			F_logkappa = self.Ffnc(logkappa, pureFenicsOutput=True)
-		
-		"""coords = self.fwd.mesh.coordinates().T
-		vals = np.exp(logkappa.handle(coords[0, :], coords[1, :]))
-		vals1 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h1.handle(coords[0, :], coords[1, :])
-		vals2 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h2.handle(coords[0, :], coords[1, :])
-		vals12 = np.exp(logkappa.handle(coords[0, :], coords[1, :]))*h1.handle(coords[0, :], coords[1, :])*h2.handle(coords[0, :], coords[1, :])
-		
-		kappa = Function(self.fwd.V)
-		kappa.vector().set_local(vals[dof_to_vertex_map(self.fwd.V)])
-		kappa1 = Function(self.fwd.V)
-		kappa1.vector().set_local(vals1[dof_to_vertex_map(self.fwd.V)])
-		kappa2 = Function(self.fwd.V)
-		kappa2.vector().set_local(vals2[dof_to_vertex_map(self.fwd.V)])
-		kappa12 = Function(self.fwd.V)
-		kappa12.vector().set_local(vals12[dof_to_vertex_map(self.fwd.V)])"""
 		
 		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y)))
 		kappa1 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(logkappa.handle(x,y))*h1.handle(x,y))
@@ -182,6 +97,7 @@ class inverseProblem():
 		return y1primeprime+y2primeprime
 	
 	def Gfnc(self, u, Fu=None, obspos=None):
+		# this is the observation operator, i.e. G = Pi \circ F, where F is the solution operator and Pi is the projection onto obspos coordinates
 		if self.obspos == None and obspos is None:
 			raise ValueError("self.obspos need to be defined or obspos needs to be given")
 		if Fu is None:
@@ -195,6 +111,7 @@ class inverseProblem():
 		return obs
 		
 	def DGfnc(self, u, h, obspos=None):
+		# Frechet derivative of observation operator
 		if self.obspos == None and obspos is None:
 			raise ValueError("self.obspos need to be defined or obspos needs to be given")			
 		Dp = self.DFfnc(u, h)
@@ -204,6 +121,7 @@ class inverseProblem():
 			return Dp.handle(obspos[0], obspos[1])
 		
 	def D2Gfnc(self, u, h1, h2=None, obspos=None):
+		# second Frechet derivative of observation operator
 		if self.obspos == None and obspos is None:
 			raise ValueError("self.obspos need to be defined or obspos needs to be given")	
 		D2p = self.D2Ffnc(u, h1, h2=h2)
@@ -214,6 +132,7 @@ class inverseProblem():
 			
 	
 	def Phi(self, u, obs=None, obspos=None, Fu=None):
+		# misfit functional
 		if obs is None:
 			assert(self.obs is not None)
 			obs = self.obs
@@ -222,6 +141,7 @@ class inverseProblem():
 		
 		
 	def DPhi(self, u, h, obs=None, obspos=None, Fu=None):
+		# Frechet derivative of misfit functional
 		if obs is None:
 			assert(self.obs is not None)
 			obs = self.obs
@@ -230,6 +150,7 @@ class inverseProblem():
 		return -1.0/(self.gamma**2)*np.dot(discrepancy, DG_of_u_h)		
 	
 	def D2Phi(self, u, h1, h2=None, obs=None, obspos=None, Fu=None):		
+		# 2nd Frechet derivative of misfit functional
 		if obs is None:
 			assert(self.obs is not None)
 			obs = self.obs
@@ -244,16 +165,21 @@ class inverseProblem():
 		return 1.0/self.gamma**2 * np.dot(DG_of_u_h1, DG_of_u_h2) - 1.0/self.gamma**2*np.dot(discrepancy, D2G_of_u_h1h2)
 	
 	def I(self, u, obs=None, obspos=None, Fu=None):
+		# energy functional for MAP optimization
 		return self.Phi(u, obs, obspos=obspos, Fu=Fu) + self.prior.normpart(u)
 	
 	def DI(self, u, h, obs=None, obspos=None, Fu=None):
+		# Frechet derivative of energy functional
 		DPhi_u_h = self.DPhi(u, h, obs=obs, obspos=obspos, Fu=Fu)
 		inner = self.prior.covInnerProd(u, h)	
 		return DPhi_u_h + inner
 	
-	def DI_vec_wavelet(self, u, obs, obspos=None, Fu=None):
+	def DI_vec_wavelet(self, u, obs=None, obspos=None, Fu=None):
+		# gradient of energy functional (each row is one "wavelet direction")
 		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
 		DIvec = np.zeros((numDir,))
+		if obs is None:
+			obs = self.obs
 		if Fu is None:
 			Fu = self.Ffnc(u)
 		for direction in range(numDir):
@@ -262,8 +188,57 @@ class inverseProblem():
 			h = mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp))
 			DIvec[direction] = self.DI(u, h, obs, obspos=obspos, Fu=Fu)
 		return DIvec
+	
+	def DPhi_adjoint(self, u, h):
+		Fu_ = self.Ffnc(u, pureFenicsOutput=True)
+		Fu = self.Ffnc(u)
+		
+		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(u.handle(x,y)))
+		
+		
+		discrepancy = self.obs - Fu.handle(self.obspos[0], self.obspos[1])
+		weights = -discrepancy/self.gamma**2
+		wtildeSol = self.fwd.solveWithDiracRHS(kappa, weights, zip(self.obspos[0][:], self.obspos[1][:]), pureFenicsOutput=True)
+		
+		kappa1 = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(u.handle(x,y))*h.handle(x,y))
+		k1 = morToFenicsConverter(kappa1, self.fwd.mesh, self.fwd.V)
+		return -assemble(k1*dot(grad(Fu_),grad(wtildeSol))*dx)
+	
+	def DPhi_adjoint_vec_wavelet(self, u):
+		Fu_ = self.Ffnc(u, pureFenicsOutput=True)
+		Fu = self.Ffnc(u)
+		
+		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(u.handle(x,y)))
+		
+		
+		discrepancy = self.obs - Fu.handle(self.obspos[0], self.obspos[1])
+		weights = -discrepancy/self.gamma**2
+		wtildeSol = self.fwd.solveWithDiracRHS(kappa, weights, zip(self.obspos[0][:], self.obspos[1][:]), pureFenicsOutput=True)
+		k = morToFenicsConverter(kappa, self.fwd.mesh, self.fwd.V)
+		fnc = project(k*dot(grad(Fu_), grad(wtildeSol)), self.fwd.V)
+		valsfnc = np.reshape(fnc.compute_vertex_values(), (2**self.fwd.rect.resol+1, 2**self.fwd.rect.resol+1))
+		morfnc = mor.mapOnRectangle(self.fwd.rect, "expl", valsfnc[0:-1,0:-1])
+		return unpackWavelet(morfnc.waveletcoeffs[0:len(u.waveletcoeffs)])*(-1)
+	
+	def DI_adjoint_vec_wavelet(self, u):
+		DPhi_vec = self.DPhi_adjoint_vec_wavelet(u)
+		wc = np.array(u.waveletcoeffs)
+		MM = len(wc)
+		s = self.prior.s
+		kappa = self.prior.kappa
+		factors = [kappa] + [kappa*4**(j*s) for j in range(MM-1)]
+		wc[0] = wc[0]*factors[0]
+		for m in range(1, MM):
+			wc[m][0] = wc[m][0]*factors[m]
+			wc[m][1] = wc[m][1]*factors[m]
+			wc[m][2] = wc[m][2]*factors[m]
+		normpartvec = unpackWavelet(wc)
+		assert(len(normpartvec) == len(DPhi_vec))
+		DPhi_vec[0] = 0
+		return normpartvec + DPhi_vec
 		
 	def DI_vec_fourier(self, u, obs, obspos=None, Fu=None):
+		# gradient of energy functional (each row is one "fourier direction")
 		numDir = len(u.fouriermodes.flatten())
 		DIvec = np.zeros((numDir,))
 		N = self.prior.N
@@ -275,6 +250,7 @@ class inverseProblem():
 		return DIvec
 	
 	def D2I(self, u, h1, h2=None, obs=None):
+		# second Frechet derivative of energy functional
 		D2Phi_u_h1_h2 = self.D2Phi(u, h1, h2=h2, obs=obs)
 		if h2 is None:
 			return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h1)
@@ -282,6 +258,7 @@ class inverseProblem():
 			return D2Phi_u_h1_h2 + self.prior.covInnerProd(h1, h2)
 	
 	def D2I_mat_wavelet(self, u, obs, obspos=None, Fu=None):		
+		# Hessian of energy functional with row/col corresponding to wavelet directions
 		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
 		D2Imat = np.zeros((numDir,numDir))
 		for dir1 in range(numDir):
@@ -296,7 +273,8 @@ class inverseProblem():
 				D2Imat[dir2, dir1] = D2Imat[dir1, dir2]
 		return D2Imat
 	
-	def D2I_mat_fourier(self, u, obs, obspos=None, Fu=None):		
+	def D2I_mat_fourier(self, u, obs, obspos=None, Fu=None):	
+		# Hessian of energy functional with row/col corresponding to fourier directions	
 		numDir = len(u.fouriercoeffs.flatten())
 		D2Imat = np.zeros((numDir,numDir))
 		N = self.prior.N
@@ -313,6 +291,7 @@ class inverseProblem():
 		return D2Imat
 
 	def I_forOpt(self, u_modes_unpacked):
+		# shorthand for I used in optimization procedure (works on plain vectors instead mor functions)
 		if isinstance(self.prior, GaussianFourier2d):
 			return self.I(mor.mapOnRectangle(self.rect, "fourier", u_modes_unpacked.reshape((self.prior.N, self.prior.N))), self.obs)
 		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
@@ -321,34 +300,27 @@ class inverseProblem():
 			raise Exception("not a valid option")
 	
 	def DI_forOpt(self, u_modes_unpacked):
+		# shorthand for the gradient of I used in optimization procedure (works on plain vectors instead mor functions)
+		# implemented in the naive way ("primal method")
 		if isinstance(self.prior, GaussianFourier2d):
 			return self.DI_vec_fourier(mor.mapOnRectangle(self.rect, "fourier", u_modes_unpacked.reshape((self.prior.N, self.prior.N))), self.obs)
 		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
 			return self.DI_vec_wavelet(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(u_modes_unpacked)), self.obs)
 		else:
 			raise Exception("not a valid option")
-	
-	def gradientI_adjoint_wavelet(self, u, Fu=None):
-		numDir = unpackWavelet(u.waveletcoeffs).shape[0]
-		DIvec = np.zeros((numDir,))
-		assert(self.obspos is not None)		
-		assert(self.obs is not None)
-		kappa = mor.mapOnRectangle(self.rect, "handle", lambda x,y: np.exp(u.handle(x,y)))
-		if Fu is None:
-			Fu = self.Ffnc(u)
-		yAtObspos = Fu.handle(self.obspos[0], self.obspos[1])
-		weights = -1/self.gamma**2 * (self.obs - yAtObspos)
-		lambdahat = self.fwd.solveWithDiracRHS(kappa, weights, self.obspos, pureFenicsOutput=True)
-		hs = []
-		for direction in range(numDir):
-			temp = np.zeros((numDir,))
-			temp[direction] = 1
-			hs.append(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(temp)))
-		DIvec = np.array(self.fwd.evalInnerProdListPhi(hs, Fu, lambdahat)) 
-		return DIvec
 			
+	def DI_adjoint_forOpt(self, u_modes_unpacked):
+		# shorthand for the gradient of I used in optimization procedure (works on plain vectors instead mor functions)
+		# implemented by the adjoint method
+		if isinstance(self.prior, GaussianFourier2d):
+			raise NotImplementedError("adjoint method for fourier not yet implemented")
+		elif isinstance(self.prior, GeneralizedGaussianWavelet2d):
+			return self.DI_adjoint_vec_wavelet(mor.mapOnRectangle(self.rect, "wavelet", packWavelet(u_modes_unpacked)))
+		else:
+			raise Exception("not a valid option")			
 	
-	def find_uMAP(self, u0, nit=5000, nfev=5000, method='Nelder-Mead'):
+	def find_uMAP(self, u0, nit=5000, nfev=5000, method='Nelder-Mead', adjoint=True, rate=0.0001):
+		# find the MAP point starting from u0 with nit iterations, nfev function evaluations and method either Nelder-Mead or BFGS (CG is not recommended)
 		assert(self.obs is not None)
 		start = time.time()
 		u0_vec = None
@@ -360,18 +332,19 @@ class inverseProblem():
 		if method=='Nelder-Mead':
 			If = lambda u: self.I_forOpt(u)
 			res = scipy.optimize.minimize(If, u0_vec, method=method, options={'disp': True, 'maxiter': nit, 'maxfev': nfev})
-		elif method == 'CG':
+		elif method == 'CG': # not recommended
 			# dirty hack to avoid overflow
-			rate = 0.0001
 			If = lambda u: self.I_forOpt(u*rate)
 			DIf = lambda u: rate*self.DI_forOpt(u*rate)
 			#res = scipy.optimize.minimize(self.I_forOpt, u0_vec, jac=self.DI_forOpt, method=method, options={'disp': True, 'maxiter': nit})
 			res = scipy.optimize.minimize(If, u0_vec/rate, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})
 			res.x = res.x * rate
 		elif method == 'BFGS':
-			rate = 0.001
 			If = lambda u: self.I_forOpt(u*rate)
-			DIf = lambda u: rate*self.DI_forOpt(u*rate)
+			if adjoint:
+				DIf = lambda u: rate*self.DI_adjoint_forOpt(u*rate)
+			else:
+				DIf = lambda u: rate*self.DI_forOpt(u*rate)
 			res = scipy.optimize.minimize(If, u0_vec/rate, jac=DIf, method=method, options={'disp': True, 'maxiter': nit})	
 			res.x = res.x * rate		
 		else:
@@ -389,7 +362,9 @@ class inverseProblem():
 		print(str(res.nfev) + " function evaluations")
 		print("Reduction of function value from " + str(self.I(u0)) + " to " + str(self.I(uOpt)))
 		return uOpt
+	
 	def randomwalk_pCN(self, uStart, N, beta=0.1):
+		# preconditioned Crank-Nicolson MCMC for sampling from posterior
 		uList = [uStart]
 		uListUnique = [uStart]
 		u = uStart
@@ -412,87 +387,6 @@ class inverseProblem():
 			uList.append(u)
 			PhiList.append(Phiu)
 		return uList, uListUnique, PhiList
-	"""def randomwalk_old(self, uStart, obs, delta, N, printDiagnostic=False, returnFull=False, customPrior=False): 	
-		u = uStart
-		r = np.random.uniform(0, 1, N)
-		acceptionNum = 0
-		if customPrior == False:
-			print("No custom prior")
-			prior = self.prior
-		else:
-			print("Custom prior")
-			prior = customPrior
-		if uStart.inittype == "fourier":
-			u_modes = uStart.fouriermodes
-			uHist = [u_modes]
-			uHistFull = [uStart]
-			Phi_val = self.Phi(uStart, obs)
-			PhiHist = [Phi_val]
-			for n in range(N):
-				v_modes = sqrt(1-2*delta)*u.fouriermodes + sqrt(2*delta)*prior.sample().fouriermodes # change after overloading
-				v = mor.mapOnRectangle(self.rect, "fourier", v_modes)
-				v1 = Phi_val
-				v2 = self.Phi(v, obs)
-				if v1 - v2 > 1:
-					alpha = 1
-				else:
-					alpha = min(1, exp(v1 - v2))
-				#r = np.random.uniform()
-				if r[n] < alpha:
-					u = v
-					u_modes = v_modes
-					acceptionNum = acceptionNum + 1
-					Phi_val = v2
-				uHist.append(u_modes)
-				PhiHist.append(Phi_val)
-				if returnFull:
-					uHistFull.append(u)
-			if printDiagnostic:
-				print("acception probability: " + str(acceptionNum/N))
-			if returnFull:
-				return uHistFull, PhiHist
-			return uHist
-		elif uStart.inittype == "wavelet":
-			u_coeffs = uStart.waveletcoeffs
-			uHist = [u_coeffs]
-			uHistFull = [uStart]
-			Phi_val = self.Phi(uStart, obs)
-			PhiHist = [Phi_val]
-			for m in range(N):
-				v_coeffs = []
-				step = prior.sample().waveletcoeffs
-				for n, uwc in enumerate(u.waveletcoeffs):
-					if n >= len(step): # if sampling resolution is lower than random walker's wavelet coefficient vector
-						break
-					if n == 0:
-						v_coeffs.append(sqrt(1-2*delta)*uwc + sqrt(2*delta)*step[n])
-						continue
-					temp1 = sqrt(1-2*delta)*uwc[0] + sqrt(2*delta)*step[n][0]
-					temp2 = sqrt(1-2*delta)*uwc[1] + sqrt(2*delta)*step[n][1]
-					temp3 = sqrt(1-2*delta)*uwc[2] + sqrt(2*delta)*step[n][2]
-					v_coeffs.append([temp1, temp2, temp3])
-				v = mor.mapOnRectangle(self.rect, "wavelet", v_coeffs)
-				v1 = Phi_val
-				v2 = self.Phi(v, obs)
-				if v1 - v2 > 1:
-					alpha = 1
-				else:
-					alpha = min(1, exp(v1 - v2))
-				#r = np.random.uniform()
-				if r[m] < alpha:
-					u = v
-					u_coeffs = v_coeffs
-					acceptionNum = acceptionNum + 1
-					Phi_val = v2
-				uHist.append(u_coeffs)
-				PhiHist.append(Phi_val)
-				if returnFull:
-					uHistFull.append(u)
-			if printDiagnostic:
-				print("acception probability: " + str(acceptionNum/N))
-			if returnFull:
-				return uHistFull, PhiHist
-			return uHist"""
 			
 	def EnKF(self, obs, J, N=1, KL=False, pert=True, ensemble=None, randsearch=True, beta = 0.1):
 		h = 1/N
