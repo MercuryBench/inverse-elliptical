@@ -307,6 +307,16 @@ def testfnc(J=9):
 	u0 = moi.mapOnInterval("expl", f, interpolationdegree = 1)
 	return u0
 
+def testfnc2(J = 9):
+	x = np.linspace(0, 1, 2**J, endpoint=False)
+	g1 = lambda x: 1+x*0
+	g2 = lambda x: -1+x*0
+	vec1 = g1(x[0:2**J*0.7])
+	vec2 = g2(x[2**J*0.7:-1])
+	f = np.concatenate((vec1, vec2))
+	u0 = moi.mapOnInterval("expl", f, interpolationdegree = 1)
+	return u0
+
 if __name__ == "__main__":
 	if len(sys.argv) > 1 and sys.argv[1] == "1":
 		# spatial resolution
@@ -1224,8 +1234,8 @@ if __name__ == "__main__":
 		
 	else:
 		x = np.linspace(0, 1, 512)
-		gamma = 0.01
-		delta = 0.01
+		gamma = 0.001
+		delta = 0.005
 	
 		# boundary values for forward problem
 		# -(k * p')' = g
@@ -1234,15 +1244,15 @@ if __name__ == "__main__":
 		pplus = 2.0
 		pminus = 1.0	
 		# right hand side of forward problem
-		g = moi.mapOnInterval("handle", lambda x: 3.0*x*(1-x))	
+		g = moi.mapOnInterval("handle", lambda x: 0.300*x*(1-x))	
 		# construct forward problem
 		fwd = linEllipt(g, pplus, pminus)
 		
 		# prior measure:
 		maxJ = 9
 		kappa = 1.0
-		prior = GaussianFourier(np.zeros((13,)), 1.0, 1.0)
-		prior2 = GaussianWavelet(1.0, 5)
+		prior = GaussianFourier(np.zeros((45,)), 0.4, 1.0)
+		prior2 = GaussianWavelet_new(1.0, 2.0, 7)
 		
 		# case 1: random ground truth
 		u0 = moi.mapOnInterval("handle", lambda x: -1.0 + ((x >= 0.6))*1.0 + 0.6, interpolationdegree=3)
@@ -1252,7 +1262,7 @@ if __name__ == "__main__":
 		
 		# construct solution and observation
 		p0 = fwd.solve(x, k0)
-		x0_ind = range(5, 495, 15) # observation indices
+		x0_ind = range(5, 495, 5) # observation indices
 		obs = p0.values[x0_ind] + np.random.normal(0, gamma, (len(x0_ind),))
 		plt.figure(1)
 		plt.plot(x, p0.handle(x), 'k')
@@ -1266,8 +1276,9 @@ if __name__ == "__main__":
 		plt.plot(x, u0.values, 'k')
 		
 		umap = ip.find_uMAP(x, prior.mean, obs, 50)
+		umap.fouriermodes[0] = 0
 		pmap = ip.Ffnc(x, umap)
-		umap = moi.mapOnInterval("expl", umap.values - np.mean(umap.values))
+		#umap = moi.mapOnInterval("expl", umap.values - np.mean(umap.values))
 		plt.plot(x, umap.values, 'b')
 		plt.figure(1);
 		plt.plot(x, pmap.values)
@@ -1286,7 +1297,18 @@ if __name__ == "__main__":
 		plt.plot(x, pmap_w.values, 'g')
 		#plt.plot(x[x0_ind], obs, 'r.')
 		
-		plt.figure(3)
+		
+		plt.figure()
+		plt.plot(x, u0.values, 'k')
+		plt.plot(x, umap.values, 'b')
+
+		plt.figure();
+		plt.plot(x, ip.Ffnc(x, u0).values, 'k')
+		plt.plot(x, pmap.values, 'b')
+		plt.plot(x[x0_ind], obs, 'r.')
+		
+		
+		"""plt.figure(3)
 		plt.clf()
 		for k in range(5):
 			cc = np.zeros((8,))
@@ -1295,5 +1317,5 @@ if __name__ == "__main__":
 			plt.subplot(1,5,k+1)
 			plt.plot(x, ww.values)
 			plt.xlim([-0.1, 1.1])
-			plt.ylim([-2.1, 2.1])
+			plt.ylim([-2.1, 2.1])"""
 

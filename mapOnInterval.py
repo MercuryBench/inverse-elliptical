@@ -14,6 +14,17 @@ import scipy
 	Missing information is calculated from the defining parameter (fourier is the exception so far)
 """
 
+
+def getFourierCoeffs1d(fs):
+	N = len(fs)
+	fs[0] = (fs[0]+fs[-1])/2.0
+	ft = np.fft.fft(fs)
+	a0 = np.array([np.real(ft[0])/N])
+	a1_ = np.real(ft[1:N//2])/N*2
+	b = -np.imag(ft[1:N//2])/N*2
+	return np.concatenate((a0, a1_, b))
+	
+
 class mapOnInterval():
 	def __init__(self, inittype, param, numSpatialPoints=2**9, interpolationdegree=3):
 		# there are three possibilities of initializing a mapOnInterval instance:
@@ -227,7 +238,7 @@ def evalmodes(modesvec, x):
 	return np.reshape(np.dot(modesvec, fncvec), (-1,))
 	
 if __name__ == "__main__":
-	x = np.linspace(0, 1, 2**9, endpoint=False)
+	"""x = np.linspace(0, 1, 2**9, endpoint=False)
 	f1 = mapOnInterval("fourier", [0,0,1,0,1], 2**9)
 	#plt.ion()
 	#plt.plot(x, f1.values)
@@ -241,6 +252,11 @@ if __name__ == "__main__":
 	
 	
 	hW.plotApprox(x, (f1*f3).waveletcoeffs)
+	plt.show()"""
+	fs = np.array(80*[1.0] + 176*[0.0])
+	ft = getFourierCoeffs1d(fs)
+	u = mapOnInterval("fourier", ft)
+	plt.figure(); plt.ion(); plt.plot(np.linspace(0,1,u.numSpatialPoints), u.values)
+	plt.plot(np.linspace(0,1,len(fs)), fs, 'r')
 	plt.show()
-	
 	

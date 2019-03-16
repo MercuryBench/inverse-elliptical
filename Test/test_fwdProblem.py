@@ -8,47 +8,22 @@ from measures import *
 from haarWavelet2d import *
 
 
-rect = Rectangle((0,0), (180,78), resol=7)
+RESOL_global = 6
 
-f2 = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-40)**2 + (y-20)**2) < 4)*(-8.2667/40))
-"""plt.figure()
-plt.subplot(2,1,1)
-plt.contourf(f2.X, f2.Y, f2.values)
-plt.subplot(2,1,2)
-plt.contourf(f2.X, f2.Y, f2.handle(f2.X, f2.Y))	
-f22 = mor.mapOnRectangle(rect, "wavelet", f2.waveletcoeffs)
+rect = Rectangle((0,0), (180,78), resol=RESOL_global)
+rect2 = Rectangle((0,0), (1,1), resol=RESOL_global)
 
-plt.figure()
-plt.subplot(2,1,1)
-plt.contourf(f22.X, f22.Y, f22.values)
-plt.subplot(2,1,2)
-plt.contourf(f22.X, f22.Y, f22.handle(f22.X, f22.Y))	
+f = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-40)**2 + (y-20)**2) < 4)*(-8.2667/40))
+f2 = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-0.3)**2 + (y-0.55)**2) < 0.01)*(-100.0))
 
-f222 = mor.mapOnRectangle(rect, "handle", f22.handle)
-
-plt.figure()
-plt.subplot(2,1,1)
-plt.contourf(f222.X, f222.Y, f222.values)
-plt.subplot(2,1,2)
-plt.contourf(f222.X, f222.Y, f222.handle(f222.X, f222.Y))"""	
-
-rect2 = Rectangle((0,0), (1,1), resol=7)
-def u_D_term2(x, y):
-	return np.logical_and(x >= 0.5, y <= 0.6)*2.0
-u_D2 = mor.mapOnRectangle(rect, "handle", lambda x,y: u_D_term2(x,y))
-
-def boundary_D_boolean2(x): # special Dirichlet boundary condition
-		if x[0] >= 0.6-tol and x[1] <= 0.5:
-			return True
-		elif x[0] <= 10**-8:
-			return True
-		else:
-			return False
 
 def u_D_term(x, y):
 	return np.logical_and(x >= 80-tol, y <= 40)*2.0
 
-u_D = mor.mapOnRectangle(rect, "handle", lambda x,y: u_D_term(x,y))
+def u_D_term2(x, y):
+	return np.logical_and(x >= 0.5, y <= 0.6)*2.0
+
+u_D2 = mor.mapOnRectangle(rect, "handle", lambda x,y: u_D_term2(x,y))
 
 def boundary_D_boolean(x): # special Dirichlet boundary condition
 		if x[0] >= 90-tol and x[1] <= 30:
@@ -59,30 +34,86 @@ def boundary_D_boolean(x): # special Dirichlet boundary condition
 			return False
 
 
+def boundary_D_boolean2(x): # special Dirichlet boundary condition
+		if x[0] >= 0.6-tol and x[1] <= 0.5:
+			return True
+		elif x[0] <= 10**-8:
+			return True
+		else:
+			return False
+
+
+def boundary_D_boolean2_version(x):
+	if x[1] > tol:
+		return True
+	else:
+		return False
+
+def u_D_term2_version(x, y):
+	return 0*x
+
+#u_D = mor.mapOnRectangle(rect, "handle", lambda x,y: u_D_term(x,y))
+u_D = mor.mapOnRectangle(rect, "handle", lambda x, y: np.logical_and(x < 10**-8, True)*1.0 - 2.0*np.logical_and(x > 90-10**-8, True)*1.0)
+
+u_D2= mor.mapOnRectangle(rect, "handle", lambda x,y: u_D_term2(x,y))
+
+
+
 """def boundary_D_boolean(x):
 	if (x[1] > 30-10**(-8) and x[1] < 50+10**(-8)) and (x[0] < 10**-8 or x[0] > 180-10**-8):
 		return True
 	else:
 		return False"""
 
-#u_D = mor.mapOnRectangle(rect, "handle", lambda x, y: np.logical_and(x < 10**-8, True)*1.0) #- 2.0*np.logical_and(x > 180-10**-8, True)*1.0)
+# 1 on left border, -2 on lower right corner and parts of adjacent borders
 
-fwd = linEllipt2dRectangle(rect, f2, u_D, boundary_D_boolean)
-fwd2 = linEllipt2dRectangle(rect2, mor.mapOnRectangle(rect, "handle", lambda x, y: 0*x), u_D2, boundary_D_boolean2)
 
-"""k0 = mor.mapOnRectangle(rect, "handle", lambda x,y: 0*x + 1)
-F0 = fwd.solve(k0)
-F0_2 = fwd2.solve(k0)
+fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
+fwd2 = linEllipt2dRectangle(rect2, f2, u_D2, boundary_D_boolean2)
 
-plt.figure(); plt.ion()
-plt.contourf(F0.X, F0.Y, F0.values, 60); plt.colorbar()
+k = mor.mapOnRectangle(rect, "handle", lambda x,y: 1/(180*180)*x*(180-x)+3/40*y*np.logical_and(y <= 40, True))
+k2 = mor.mapOnRectangle(rect2, "handle", lambda x,y: 0.001*x*(1-x)+0.5*y*np.logical_and(y <= 0.5, True) + 2*np.exp(-40*(y-np.exp(-2.3*x))**2)) 
+
+start = time.time()
+F_, F = fwd.solve(k, pureFenicsOutput="both")
+end = time.time()
+print("solve1:")
+print(end-start)
+
+start = time.time()
+F2_, F2 = fwd2.solve(k2, pureFenicsOutput="both")
+end = time.time()
+print("solve2:")
+print(end-start)
+
+vtkfile = File('solution.pvd')
+vtkfile << F2_
+fig1 = plt.figure(); plt.ion()
+ax = fig1.add_subplot(2, 1, 1, aspect="equal")
+plt.contourf(F2.X, F2.Y, F2.values, 60); plt.colorbar()
+ax2 = fig1.add_subplot(2, 1, 2, aspect="equal")
+plt.contourf(k2.x, k2.y, k2.values, 60);plt.colorbar()
 plt.show()
 
-plt.figure(); plt.ion()
-plt.contourf(F0_2.X, F0_2.Y, F0_2.values, 60); plt.colorbar()
-plt.show()"""
+fig2 = plt.figure(); plt.ion()
+ax = fig2.add_subplot(2, 1, 1, aspect="equal")
+plt.contourf(F.X, F.Y, F.values, 60); plt.colorbar()
+ax2 = fig2.add_subplot(2, 1, 2, aspect="equal")
+plt.contourf(k.x, k.y, k.values, 60);plt.colorbar()
+plt.show()
 
-m1 = GeneralizedGaussianWavelet2d(rect, 1.0, 1.5, 5)
+kappa = morToFenicsConverterHigherOrder(k, fwd2.mesh, fwd2.V)
+vtkfile = File('kappa.pvd')
+vtkfile << kappa
+"""V = fwd.V
+mesh = fwd.mesh
+u = TrialFunction(V)
+v = TestFunction(V)
+L = self.f*v*dx		
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		solve(a == L, uSol, self.bc)"""
+"""m1 = GeneralizedGaussianWavelet2d(rect, 1.0, 1.5, 5)
 u1 = m1.sample()
 plt.figure();
 plt.contourf(u1.values)
@@ -95,21 +126,7 @@ vtkfile << F1_
 
 plt.figure(); plt.ion()
 plt.contourf(F1.X, F1.Y, F1.values, 60); plt.colorbar()
-plt.show()
-
-"""temp = np.zeros((2**5,))
-temp[12] = -1
-u1 = mor.mapOnRectangle(rect, "wavelet", packWavelet(temp))
-plt.figure();
-plt.contourf(u1.values)
-plt.colorbar()
-k1 = mor.mapOnRectangle(rect, "handle", lambda x,y: np.exp(u1.handle(x, y)))
-F1_ = fwd.solve(k1, pureFenicsOutput=True)
-F1 = fwd.solve(k1)
-vtkfile = File('solution_sandbox.pvd')
-vtkfile << F1_
-
-plt.figure(); plt.ion()
-plt.contourf(F1.X, F1.Y, F1.values, 60); plt.colorbar()
 plt.show()"""
+
+
 

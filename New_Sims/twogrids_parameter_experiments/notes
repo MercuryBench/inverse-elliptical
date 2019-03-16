@@ -1,0 +1,56 @@
+PDE solver is on finer grid, also we test different parameters for the prior
+
+Test Case 1: 
+	kappa = 0.01, 	s = 1.5
+	Comment: Overfitting! MAP estimator has much lower Phi than uTruth. 
+	Also: uTruth is very improbable
+	I(uOpt) 	= 3.5 	= 0.1 (Phi) 	+ 3.4 (norm)
+	I(uTruth) 	= 42.3 	= 18.4 (Phi)	+ 23.9 (norm)
+
+Test Case 2:
+	kappa = 0.1, 	s = 1.5
+	Comment: Similar problem:
+	I(uOpt) 	= 13.6 	= 0.9 (Phi)	+ 12.7 (norm)
+	I(uTruth)	= 259.2	= 20.1 (Phi)	+ 239.1 (norm)
+
+Test Case 3:
+	kappa = 0.01, 	s = 2.0
+	Comment: Same
+	I(uOpt)		= 6.5	= 0.15 (Phi)	+ 6.35 (norm)
+	I(uTruth)	= 637.2	= 23.1 (Phi)	+ 614.1 (norm)
+
+Test Case 4:
+	kappa = 0.001, 	s = 1.5
+	I(uOpt)		= 2.5	= 0.1 (Phi)	+ 2.4 (norm)
+	I(uTruth)	= 20.7	= 18.3 (Phi)	+ 2.4 (norm)
+
+Test Case 5:
+	kappa = 0.001, 	s = 2.0
+	I(uOpt)		= 4.5	= 0.3 (Phi)	+ 4.2 (norm)
+	I(uTruth)	= 87.3	= 25.8 (Phi)	+ 61.5 (norm)
+
+Test Case 6:
+	kappa = 0.001, 	s = 2.5
+	I(uOpt)		= 5.4		= 0.2 (Phi)	+ 5.2 (norm)
+	I(uTruth)	= 1819.6	= 19.8 (Phi)	+ 1799.8 (norm)
+
+Test Case 7:
+	kappa = 0.01, 	s = 2.5
+	I(uOpt)		= 28.0		= 0.7 (Phi)	+ 27.3 (norm)
+	I(uTruth)	= 18026.0	= 27.9 (Phi)	+ 17998.1 (norm)
+
+Test Case 8:
+	kappa = 0.1, 	s = 2.0
+	Comment: Similar problem:
+	I(uOpt)		= 30.6		= 0.8 (Phi)	+ 29.8 (norm)
+	I(uTruth)	= 6166.9	= 25.2 (Phi)	+ 6141.7 (norm)
+
+Test Case 9:
+	kappa = 0.1, 	s = 2.5
+	Comment: Similar problem:
+	I(uOpt)		= 87.4		= 4.5 (Phi)	+ 82.9 (norm)
+	I(uTruth)	= 180006.0	= 24.9 (Phi)	+ 179981.1 (norm)
+
+
+
+	

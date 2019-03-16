@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, pi, sqrt, log, pi, exp, log10
 import math
+from math import e
 import sys 
 sys.path.append('..')
 import mapOnRectangle as mor
@@ -43,7 +44,7 @@ def boundary_D_boolean(x): # special Dirichlet boundary condition
 f = mor.mapOnRectangle(rect, "handle", lambda x, y: (((x-.6)**2 + (y-.85)**2) < 0.1**2)*(-20.0) + (((x-.2)**2 + (y-.75)**2) < 0.1**2)*20.0)
 
 fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
-m1 = GeneralizedGaussianWavelet2d(rect, 0.00001, 0.5, 5)
+m1 = GeneralizedGaussianWavelet2d(rect, 0.001, 0.5, 5)
 invProb = inverseProblem(fwd, m1, gamma)
 
 
@@ -71,8 +72,8 @@ print("solve time: " + str(end-start))
 
 
 u0 = mor.mapOnRectangle(rect, "wavelet", m1._mean)
-uOpt = invProb.find_uMAP(u0, nit=100000, nfev=100000, method='Nelder-Mead')
-uOpt = invProb.find_uMAP(u0, nit=10, nfev=100, method='CG')
+uOpt = invProb.find_uMAP(u0, nit=1000, nfev=1000, method='Nelder-Mead')
+#uOpt = invProb.find_uMAP(u0, nit=10, nfev=100, method='CG')
 
 
 

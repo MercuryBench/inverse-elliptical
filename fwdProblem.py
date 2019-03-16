@@ -62,7 +62,7 @@ class linEllipt():
 		else:
 			return p
 
-def morToFenicsConverter(f, mesh, V):
+def morToFenicsConverter(f, mesh, V): # redundant: corresponds to morToFenicsConverterHigherOrder with version="handle"
 	# converts a mapOnRectangle function to a fenics function on a mesh. Needed for compatibility
 	coords = mesh.coordinates().T
 
@@ -75,22 +75,48 @@ def morToFenicsConverter(f, mesh, V):
 	fnc.vector().set_local(vals[dof_to_vertex_map(V)])
 	return fnc
 
-def morToFenicsConverterHigherOrder(f, mesh, V):
-	# get coordinates of all degrees of freedom
-	dof_coord_raw = V.tabulate_dof_coordinates()
-	dof_coord_x = np.array([dof_coord[2*k] for k in range(289)]).reshape((-1,1))
-	dof_coord_y = np.array([dof_coord[2*k+1] for k in range(289)]).reshape((-1,1))
-	dof_coords = np.concatenate((dof_coord_x, dof_coord_y), axis=1)
-	
+def morToFenicsConverterHigherOrder(f, mesh, V, version="vals"):
+	#dof_coord_x = np.array([dof_coord_raw[2*k] for k in range(len(dof_coord_raw)//2)]).reshape((-1,1))
+	#dof_coord_y = np.array([dof_coord_raw[2*k+1] for k in range(len(dof_coord_raw)//2)]).reshape((-1,1))
+	#dof_coords = np.concatenate((dof_coord_x, dof_coord_y), axis=1)
+	#dof_coords = np.concatenate((dof_coord_raw[:,0], dof_coord_raw[:,1]), axis=1)
 	# compute function values on all degrees of freedom
-	vals = f.handle(dof_coords)
+
 	
-	# kind of like dof_to_vertex_map
-	dofs = V.dofmap().dofs()
-	fnc = Function(V)
-	fnc.vector().set_local(vals[dofs])
-	return fnc
-	
+	"""if f.inittype == "handle":
+		vals = f.handle(dof_coords[:, 0], dof_coords[:, 1])
+	else:"""
+	if version == "vals" or version == "wavelet":
+		# get coordinates of all degrees of freedom
+		dof_coord_raw = V.tabulate_dof_coordinates().reshape((-1,2))
+		ind = np.lexsort((dof_coord_raw[:,0], dof_coord_raw[:,1])) # maybe outsource this if this gets too much computation time
+		def invert_permutation(permutation):
+			return [i for i, j in sorted(enumerate(permutation), key=lambda j: j[1])]
+		ind_inv = invert_permutation(ind)
+		fvals = f.values
+		(N1,N2) = fvals.shape
+		vals = np.zeros((N1+1,N2+1)) # extend array to "right boundary": data is only given on 0, 1/N, ..., (N-1)/N and needs to be defined on 1 as well. This is done here
+		vals[0:N1, 0:N2] = fvals
+		vals[-1, 0:N2] = fvals[-1, :]
+		vals[0:N1, -1] = fvals[:, -1]
+		vals[-1,-1] = fvals[-1,-1]
+		vals = vals.flatten() # this is super risky!
+		vals = vals[ind_inv]
+
+		# kind of like dof_to_vertex_map
+		dofs = V.dofmap().dofs()
+		fnc = Function(V)
+		fnc.vector().set_local(vals[dofs])
+		return fnc
+	elif version == "handle":
+		coords = mesh.coordinates().T
+		vals = f.handle(coords[0, :], coords[1, :])
+		fnc = Function(V)
+		fnc.vector().set_local(vals[dof_to_vertex_map(V)])
+		return fnc		
+	else:
+		raise Exception("invalid option for parameter 'version' in morToFenicsConverterHigherOrder")
+
 class linEllipt2dRectangle():
 	# main class for the linear elliptical 2d problem on a rectangular domain
 	# can handle several kinds of PDE operations which are needed by higher-level classes
@@ -100,17 +126,176 @@ class linEllipt2dRectangle():
 		assert isinstance(rect, Rectangle)
 		self.rect = rect
 		self.mesh = RectangleMesh(Point(rect.x1,rect.y1), Point(rect.x2,rect.y2), 2**rect.resol, 2**rect.resol)
-		self.V = FunctionSpace(self.mesh, 'P', 1)
+		self.V = FunctionSpace(self.mesh, 'P', 1) # should be 4, I guess
 		
 		# if the forcing term and/or the dirichlet boundary data are not already in fenics type, convert
 				
 		if isinstance(f, mor.mapOnRectangle):
-			self.f = morToFenicsConverter(f, self.mesh, self.V)
+			self.f = morToFenicsConverterHigherOrder(f, self.mesh, self.V, f.inittype)
 		else:
 			self.f = f
 		
+		if isinstance(u_D, mor.mapOnRectangle): # use "handle" version! converter in "expl" version only works on inner part of domain, but u_D is exclusively defined on boundary!
+			self.u_D = morToFenicsConverterHigherOrder(u_D, self.mesh, self.V, version="handle")
+		else:
+			self.u_D = u_D
+		
+		self.boundary_markers = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
+
+		# the following implements Dirichlet boundary conditions with value u_D on the boundary specified by boundary_D_boolean 
+		# (and the pre-implemented on_boundary functionality)
+		# the rest is assumed 0-Neumann
+		
+		class BoundaryDirichlet(SubDomain):
+			tol = 1E-14
+			def inside(self, x, on_boundary):
+				return on_boundary and boundary_D_boolean(x)
+		class BoundaryNeumann(SubDomain):
+			tol = 1E-14
+			def inside(self, x, on_boundary):
+				return on_boundary and not boundary_D_boolean(x)
+
+
+		bD = BoundaryDirichlet()
+		bD.mark(self.boundary_markers, 1)
+		bN = BoundaryNeumann()
+		bN.mark(self.boundary_markers, 2)
+
+		boundary_conditions = {1: {'Dirichlet': self.u_D}, 2: {'Neumann':   Constant(0.0)}}
+
+		bcs = []
+		for i in boundary_conditions:
+			if 'Dirichlet' in boundary_conditions[i]:
+				bc = DirichletBC(self.V, boundary_conditions[i]['Dirichlet'], self.boundary_markers, i)
+				bcs.append(bc)
+		
+		self.bc = bcs				
+	
+	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y	with b.c. as specified in initialization
+		set_log_level(40)
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
+		
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		L = self.f*v*dx		
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		solve(a == L, uSol, self.bc)
+		if pureFenicsOutput == True:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		if pureFenicsOutput == "Both" or pureFenicsOutput == "both":
+			return uSol, mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid
+		else:
+			return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid  
+	
+	def evalInnerProdListPhi(self, phis, u, v): # computes \int phi * nabla(u)*nabla(v) for all phi in phis
+		lst = []
+		if isinstance(u, mor.mapOnRectangle):
+			u = morToFenicsConverterHigherOrder(u, self.mesh, self.V)
+		if isinstance(v, mor.mapOnRectangle):
+			v = morToFenicsConverterHigherOrder(v, self.mesh, self.V)
+		for phi in phis:
+			if isinstance(phi, mor.mapOnRectangle):
+				phi = morToFenicsConverterHigherOrder(phi, self.mesh, self.V)			
+			lst.append(assemble(phi*dot(grad(u),grad(v))*dx))
+		return lst
+		
+	
+	def solveWithDiracRHS(self, k, ws, xs, pureFenicsOutput=False): # solves -div(k*nabla(y)) = sum_i w_i*dirac_{x_i} with homogenous bcs
+		set_log_level(40)
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		delta = []
+		for w, x in zip(ws, xs):
+			delta.append(PointSource(self.V, Point(x[0], x[1]), w))
+		
+		a = k*dot(grad(u), grad(v))*dx
+		L = Constant(0)*v*dx
+		A, b = assemble_system(a, L, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))
+		for d in delta:
+			d.apply(b)
+		
+		uSol = Function(self.V)
+		solve(A, uSol.vector(), b)
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
+	
+	
+	
+	
+	
+	
+	
+	
+	def evalInnerProd(self, k, u, v): # evaluate \int k * nabla(u)*nabla(v) over Omega
+		return assemble(k*dot(grad(u),grad(v))*dx)
+		
+	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
+		if isinstance(k1, mor.mapOnRectangle):
+			k1 = morToFenicsConverterHigherOrder(k1, self.mesh, self.V)
+		if isinstance(y, mor.mapOnRectangle):
+			y = morToFenicsConverterHigherOrder(y, self.mesh, self.V)
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		#L = self.f*v*dx		
+		L = - k1*dot(grad(y),grad(v))*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		u_D_0 = Expression('0*x[0]', degree=2)
+		solve(a == L, uSol, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))#DirichletBC(self.V, u_D_0, self.boundary_D))#
+		
+		if pureFenicsOutput:
+			return uSol
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
+	
+	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22	
+		if isinstance(k, mor.mapOnRectangle):
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
+		if isinstance(k1, mor.mapOnRectangle):
+			k1 = morToFenicsConverterHigherOrder(k1, self.mesh, self.V)
+		if isinstance(k2, mor.mapOnRectangle):
+			k2 = morToFenicsConverterHigherOrder(k2, self.mesh, self.V)
+		set_log_level(40)
+		u = TrialFunction(self.V)
+		v = TestFunction(self.V)
+		#L = self.f*v*dx		
+		L = - (k1*dot(grad(y2),grad(v)) + k2*dot(grad(y1),grad(v)))*dx
+		a = k*dot(grad(u), grad(v))*dx
+		uSol = Function(self.V)
+		u_D_0 = Expression('0*x[0]', degree=2)
+		solve(a == L, uSol, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))#DirichletBC(self.V, u_D_0, self.boundary_D))
+		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
+		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
+		
+class linEllipt2dRectangle_hydrTom():
+	# main class for the linear elliptical 2d hydraulic tomography problem on a rectangular domain
+	# is essentially just a list of linEllipt2dRectangle classes (all the same rectangle, permeability and boundary conditions, just source term varies)
+	def __init__(self, rect, fs, u_D, boundary_D_boolean):
+		assert isinstance(rect, Rectangle)
+		self.rect = rect
+		self.mesh = RectangleMesh(Point(rect.x1,rect.y1), Point(rect.x2,rect.y2), 2**rect.resol, 2**rect.resol)
+		self.V = FunctionSpace(self.mesh, 'P', 1) # should be 4, I guess
+		
+		# if the forcing term and/or the dirichlet boundary data are not already in fenics type, convert
+		self.fs = []
+		for f in fs:		
+			if isinstance(f, mor.mapOnRectangle):
+				self.fs.append(morToFenicsConverterHigherOrder(f, self.mesh, self.V))
+			else:
+				self.fs.append(f)
+		
 		if isinstance(u_D, mor.mapOnRectangle):
-			self.u_D = morToFenicsConverter(u_D, self.mesh, self.V)
+			self.u_D = morToFenicsConverterHigherOrder(u_D, self.mesh, self.V)
 		else:
 			self.u_D = u_D
 		
@@ -148,28 +333,34 @@ class linEllipt2dRectangle():
 	def solve(self, k, pureFenicsOutput=False):	# solves -div(k*nabla(y)) = f for y	with b.c. as specified in initialization
 		set_log_level(40)
 		if isinstance(k, mor.mapOnRectangle):
-			k = morToFenicsConverter(k, self.mesh, self.V)
-		
-		u = TrialFunction(self.V)
-		v = TestFunction(self.V)
-		L = self.f*v*dx		
-		a = k*dot(grad(u), grad(v))*dx
-		uSol = Function(self.V)
-		solve(a == L, uSol, self.bc)
-		if pureFenicsOutput:
-			return uSol
-		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
-		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) #cut vals to fit in rect grid 
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
+		uSolList = []
+		for f in self.fs:
+			u = TrialFunction(self.V)
+			v = TestFunction(self.V)
+			L = f*v*dx		
+			a = k*dot(grad(u), grad(v))*dx
+			uSol = Function(self.V)
+			solve(a == L, uSol, self.bc)
+			uSolList.append(uSol)
+		if pureFenicsOutput == True:
+			return uSolList
+		valsList = [np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1)) for uSol in uSolList]
+		fnclist = [mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1]) for vals in valsList] #cut vals to fit in rect grid  
+		if pureFenicsOutput == "Both" or pureFenicsOutput == "both":
+			return uSolList, fnclist 
+		else:
+			return fnclist 
 	
 	def evalInnerProdListPhi(self, phis, u, v): # computes \int phi * nabla(u)*nabla(v) for all phi in phis
 		lst = []
 		if isinstance(u, mor.mapOnRectangle):
-			u = morToFenicsConverter(u, self.mesh, self.V)
+			u = morToFenicsConverterHigherOrder(u, self.mesh, self.V)
 		if isinstance(v, mor.mapOnRectangle):
-			v = morToFenicsConverter(v, self.mesh, self.V)
+			v = morToFenicsConverterHigherOrder(v, self.mesh, self.V)
 		for phi in phis:
 			if isinstance(phi, mor.mapOnRectangle):
-				phi = morToFenicsConverter(phi, self.mesh, self.V)			
+				phi = morToFenicsConverterHigherOrder(phi, self.mesh, self.V)			
 			lst.append(assemble(phi*dot(grad(u),grad(v))*dx))
 		return lst
 		
@@ -177,7 +368,7 @@ class linEllipt2dRectangle():
 	def solveWithDiracRHS(self, k, ws, xs, pureFenicsOutput=False): # solves -div(k*nabla(y)) = sum_i w_i*dirac_{x_i} with homogenous bcs
 		set_log_level(40)
 		if isinstance(k, mor.mapOnRectangle):
-			k = morToFenicsConverter(k, self.mesh, self.V)
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
 		u = TrialFunction(self.V)
 		v = TestFunction(self.V)
 		delta = []
@@ -209,11 +400,11 @@ class linEllipt2dRectangle():
 		
 	def solveWithHminus1RHS(self, k, k1, y, pureFenicsOutput=False): # solves -div(k*nabla(y1)) = div(k1*nabla(y)) for y1		
 		if isinstance(k, mor.mapOnRectangle):
-			k = morToFenicsConverter(k, self.mesh, self.V)
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
 		if isinstance(k1, mor.mapOnRectangle):
-			k1 = morToFenicsConverter(k1, self.mesh, self.V)
+			k1 = morToFenicsConverterHigherOrder(k1, self.mesh, self.V)
 		if isinstance(y, mor.mapOnRectangle):
-			y = morToFenicsConverter(y, self.mesh, self.V)
+			y = morToFenicsConverterHigherOrder(y, self.mesh, self.V)
 		set_log_level(40)
 		u = TrialFunction(self.V)
 		v = TestFunction(self.V)
@@ -231,11 +422,11 @@ class linEllipt2dRectangle():
 	
 	def solveWithHminus1RHS_variant(self, k, k1, y1, k2, y2): # solves -div(k*nabla(y22)) = div(k1*nabla(y2) + k2*nabla(y1)) for y22	
 		if isinstance(k, mor.mapOnRectangle):
-			k = morToFenicsConverter(k, self.mesh, self.V)
+			k = morToFenicsConverterHigherOrder(k, self.mesh, self.V)
 		if isinstance(k1, mor.mapOnRectangle):
-			k1 = morToFenicsConverter(k1, self.mesh, self.V)
+			k1 = morToFenicsConverterHigherOrder(k1, self.mesh, self.V)
 		if isinstance(k2, mor.mapOnRectangle):
-			k2 = morToFenicsConverter(k2, self.mesh, self.V)
+			k2 = morToFenicsConverterHigherOrder(k2, self.mesh, self.V)
 		set_log_level(40)
 		u = TrialFunction(self.V)
 		v = TestFunction(self.V)
@@ -247,8 +438,6 @@ class linEllipt2dRectangle():
 		solve(a == L, uSol, DirichletBC(self.V, Constant(0), self.boundary_markers, 1))#DirichletBC(self.V, u_D_0, self.boundary_D))
 		vals = np.reshape(uSol.compute_vertex_values(), (2**self.rect.resol+1, 2**self.rect.resol+1))
 		return mor.mapOnRectangle(self.rect, "expl", vals[0:-1,0:-1])
-		
-
 """class linEllipt2d(): # should be obsolete after linEllipt2dRectangle
 	# model: -(k*p')' = f, with p = u_D on the Dirichlet boundary and Neumann = 0 on the rest 
 	def __init__(self, f, u_D, boundaryD, resol=4, xresol=7):

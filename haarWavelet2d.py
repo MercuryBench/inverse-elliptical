@@ -268,6 +268,24 @@ def plotApprox(x, w):
 		plt.subplot(len(recon), 1, n+1)
 		plt.plot(x, r) 
 
+# parse a Wavelet decomposition to another resolution (by padding with zero coefficients or dropping some)
+def parseResolution(coeffs, newRes):
+	newCoeffs = packWavelet(np.copy(unpackWavelet(coeffs)))
+	res = len(coeffs)
+	if newRes == res:
+		# nothing to be done
+		return newCoeffs
+	if newRes < res:
+		return newCoeffs[0:newRes]
+	if newRes > res:
+		for k in range(res, newRes):
+			c1 = np.zeros((2**(k-1), 2**(k-1)))
+			c2 = np.zeros((2**(k-1), 2**(k-1)))
+			c3 = np.zeros((2**(k-1), 2**(k-1)))
+			newCoeffs.append([c1, c2, c3])
+		return newCoeffs
+			
+
 
 if __name__ == "__main__":
 	"""J = 9
@@ -335,7 +353,7 @@ if __name__ == "__main__":
 	f = waveletsynthesis2d(w)
 	f2 = waveletsynthesis2d(w, resol=3)"""
 	
-	rect = Rectangle((-5,-5),(5,5), 6)
+	rect = Rectangle((0,0),(1,1), 6)
 	plt.figure()
 	for k in range(25):
 		ax = plt.subplot(5,5,k+1)
@@ -347,13 +365,19 @@ if __name__ == "__main__":
 		ax.tick_params(labelleft='off') 
 	
 	plt.figure()
-	fnc = mor.mapOnRectangle(rect, "handle", lambda x, y: np.sin(np.sqrt(x**4 + y**2)))
+	fnc = mor.mapOnRectangle(rect, "handle", lambda x, y: np.sin(np.sqrt((10*x-5)**4 + (10*y-5)**2)))
 	plt.contourf(fnc.values)
 	plt.figure()
 	for k in range(6):
 		plt.subplot(3, 2, k+1)
 		fnc_cut = mor.mapOnRectangle(rect, "wavelet", fnc.waveletcoeffs[0:k+2])
-		plt.contourf(fnc_cut.values)
+		plt.contourf(fnc_cut.X, fnc_cut.Y, fnc_cut.values)
+		plt.xlim([0,1])
+		plt.ylim([0,1])
+		plt.clim([-1,1])
+		plt.axis("square")
+		plt.gca().axes.get_yaxis().set_visible(False)
+		plt.gca().axes.get_xaxis().set_visible(False)
 	
 	
 

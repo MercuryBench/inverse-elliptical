@@ -7,6 +7,8 @@ from rectangle import *
 from scipy.interpolate import RectBivariateSpline
 import scipy
 import inspect
+import time
+from rectangle import *
 
 """ This is a class modelling maps on the rectangle [x1,x2]x[y1,y2]. There are four ways of defining a function: 
 	 	-> By explicit discretization values on a grid over the rectangle, 
@@ -35,8 +37,90 @@ def packWavelet(vector):
 		packed.append([temp1, temp2, temp3])
 	return packed
 
+def getFourierCoeffs_(fs, M=None): # old version, doesn't work properly
+	ft = np.fft.fft2(fs[0:-1,0:-1])
+	N = int(log(fs.shape[0])/log(2))
+	temp1 = (ft[1:2**(N-1), 1:2**(N-1)]+np.flipud(ft[2**(N-1):2**N, 1:2**(N-1)]))/2
+	temp2 = (ft[1:2**(N-1), 1:2**(N-1)]-np.flipud(ft[2**(N-1):2**N, 1:2**(N-1)]))/2
+
+	a = np.real(temp1)/2**(2*N)*4
+	b = -np.real(temp2)/2**(2*N)*4
+	c = -np.imag(temp1)/2**(2*N)*4
+	d = -np.imag(temp2)/2**(2*N)*4
+
+	a0 = np.real(ft[0, 1:2**(N-1)])/2**(2*N)*2
+	a02 = np.imag(ft[0, 2**(N-1):2**N])/2**(2*N)*2
+	a0 = np.concatenate((a0, a02))
+	a0_ = np.real(ft[1:2**(N-1), 0])/2**(2*N)*2
+	a0_2 = np.imag(ft[2**(N-1):2**N, 0])/2**(2*N)*2
+	a0_ = np.concatenate((a0_,a0_2))
+	a00 = np.real(ft[0,0])/2**(2*N)
+
+	mat1 = np.concatenate((a00.reshape((1,1)), a0.reshape((1, -1))), axis=1)
+	mat2 = np.concatenate((a, c), axis=1)
+	mat3 = np.concatenate((d, b), axis=1)
+	mat23 = np.concatenate((mat2, mat3), axis=0)
+	mat4 = np.concatenate((a0_.reshape((-1,1)), mat23), axis=1)
+	mat = np.concatenate((mat1, mat4), axis=0)
+	if M is None:
+		return mat
+	return extractsubfouriermatrix(mat, M)
+
+def getFourierCoeffs(fs, M=None):
+	ft = np.fft.fft2(fs)
+	N = int(log(fs.shape[0])/log(2))
+	temp1 = (ft[1:2**(N-1), 0:2**(N-1)]+np.flipud(ft[2**(N-1)+1:2**N, 0:2**(N-1)]))/2
+	temp2 = (ft[1:2**(N-1), 0:2**(N-1)]-np.flipud(ft[2**(N-1)+1:2**N, 0:2**(N-1)]))/2
+	temp1 = np.concatenate((ft[0, 0:2**(N-1)].reshape(1,-1), temp1), axis=0)
+	a = np.real(temp1)/2**(2*N)*4
+	a[0, :] /= 2
+	a[:, 0] /= 2
+	b = -np.real(temp2[:, 1:])/2**(2*N)*4
+	c = -np.imag(temp1[:, 1:])/2**(2*N)*4
+	c[0, :] /= 2
+	d = -np.imag(temp2[:, :])/2**(2*N)*4
+	d[:, 0] /= 2
+	
+	"""a0 = np.real(ft[0, 1:2**(N-1)])/2**(2*N)*2
+	a02 = np.imag(ft[0, 2**(N-1):2**N])/2**(2*N)*2
+	a0 = np.concatenate((a0, a02))
+	a0_ = np.real(ft[1:2**(N-1), 0])/2**(2*N)*2
+	a0_2 = np.imag(ft[2**(N-1):2**N, 0])/2**(2*N)*2
+	a0_ = np.concatenate((a0_,a0_2))
+	a00 = np.real(ft[0,0])/2**(2*N)
+
+	mat1 = np.concatenate((a00.reshape((1,1)), a0.reshape((1, -1))), axis=1)
+	mat2 = np.concatenate((a, c), axis=1)
+	mat3 = np.concatenate((d, b), axis=1)
+	mat23 = np.concatenate((mat2, mat3), axis=0)
+	mat4 = np.concatenate((a0_.reshape((-1,1)), mat23), axis=1)
+	mat = np.concatenate((mat1, mat4), axis=0)"""
+	temp1_ = np.concatenate((a, d), axis=0)
+	temp2_ = np.concatenate((c, b), axis=0)
+	mat_ = np.concatenate((temp1_, temp2_), axis=1)
+	if M is None:
+		return mat_
+	return extractsubfouriermatrix(mat_, M)
+
+
+def extractsubfouriermatrix(mat, M):
+	N = mat.shape[0]
+	temp1 = mat[0:(M+1)//2,0:(M+1)//2]
+	temp2 = mat[0:(M+1)//2,(N+1)//2:(N+1)//2+(M-1)//2]
+	temp3 = mat[(N+1)//2:(N+1)//2+(M-1)//2, 0:(M+1)//2]
+	temp4 = mat[(N+1)//2:(N+1)//2+(M-1)//2,(N+1)//2:(N+1)//2+(M-1)//2]
+	temp5 = np.concatenate((temp1,temp2), axis=1)
+	temp6 = np.concatenate((temp3, temp4),axis=1)
+	return np.concatenate((temp5,temp6),axis=0)
+
+def fourierdecomposition(fnc, N): # N is the output width of the fourier matrix
+	c = np.zeros((N//2,N//2))
+	for k in range(N//2):
+		for l in range(N//2):
+			c[k,l] = scipy.integrate.dblquad(lambda x,y: fnc(x,y)*np.exp(-1j*k*2*pi*x)*np.exp(-1j*l*2*pi*y), 0, 1, lambda x: x, lambda x: x)
+
 class mapOnRectangle():
-	def __init__(self, rect, inittype, param, interpolationdegree=3):
+	def __init__(self, rect, inittype, param, interpolationdegree=3, customFourierNum=None):
 		# there are three possibilities of initializing a mapOnInterval instance:
 		# 1) By explicit values on a discretization: inittype == "expl"
 		# 2) By Fourier expansion: inittype == "fourier"
@@ -55,6 +139,10 @@ class mapOnRectangle():
 		self.x, self.y = self.rect.getXY()
 		self._X = None # meshgrid version of self.x, but this is used more seldomely so only calculate on demand (property)
 		self._Y = None 
+		if customFourierNum is None:
+			self.M = 2**(rect.resol-1)
+		else:
+			self.M = customFourierNum
 		
 		if inittype == "expl": 
 			assert isinstance(param, np.ndarray) and param.shape == (self.numSpatialPoints, self.numSpatialPoints)
@@ -73,7 +161,7 @@ class mapOnRectangle():
 			assert len((inspect.getargspec(param)).args) == 2 # check whether correct number of arguments (2)
 			self._handle = param
 		else:
-			raise ValueError("inittype neither expl nor fourier nor wavelet")
+			raise ValueError("inittype neither expl nor fourier nor wavelet nor handle")
 		
 		# The next four properties manage the variables values, fouriermodes, waveletcoeffs and handle: As each instance of an mor is initialized by one of those, the others might be empty and in that case still need to be calculated
 	
@@ -98,24 +186,40 @@ class mapOnRectangle():
 				self._values = hW.waveletsynthesis2d(self.waveletcoeffs, resol=self.resol)
 			elif self.inittype == "handle":
 				X, Y = self.X, self.Y
-				# watch out: self.values[0, -1] does NOT correspond to self.handle(self.x1, self.y2)
-				# rather: self.values[0, -1] = self.handle(self.x2, self.y1) (role of x and y is changed)
 				self._values = self.handle(X, Y)
 			else:
 				raise Exception("Wrong value for self.inittype")
 			return self._values
 		else:
 			return self._values
+
+	
+	"""@property
+	def values_ext(self):
+		if self._values_ext is None:
+			if self.inittype == "fourier":
+				raise NotImplementedError("values_Ext not yet implemented for fourier mors")
+			elif self.inittype == "wavelet":
+				v = self._values
+				
+			elif self.inittype == "handle":
+				X, Y = self.X_ext, self.Y_ext
+				self._values = self.handle(X, Y)
+			else:
+				raise Exception("Wrong value for self.inittype")
+			return self._values
+		else:
+			return self._values"""
 	
 	@property
 	def fouriermodes(self):
 		if self._fouriermodes is None: # Fourier analysis not yet implemented: If you want the fourier series, you must initialie the mor with it!
 			if self.inittype == "expl":
-				raise NotImplementedError("(expl -> fourier) not yet implemented")
+				self._fouriermodes = getFourierCoeffs(self.values, self.M)
 			elif self.inittype == "wavelet":
-				raise NotImplementedError("(wavelet -> fourier) not yet implemented")
+				self._fouriermodes = getFourierCoeffs(self.values, self.M)
 			elif self.inittype == "handle":
-				raise NotImplementedError("(handle -> fourier) not yet implemented")
+				self._fouriermodes = getFourierCoeffs(self.values, self.M)
 			else:
 				raise Exception("Wrong value for self.inittype")
 			return self._fouriermodes
@@ -154,9 +258,10 @@ class mapOnRectangle():
 		else:
 			return self._handle
 	
+
 	
 	
-	def evalmodesGrid(self, modesmat, x, y): # evaluate function on the whole grid given by x \times y where x and y are np.linspace objects
+	def evalmodesGrid(self, modesmat, x, y, modes_fnc=None): # evaluate function on the whole grid given by x \times y where x and y are np.linspace objects
 		if not isinstance(x, np.ndarray):
 			x = np.array([[x]])
 		if not isinstance(y, np.ndarray):
@@ -165,6 +270,46 @@ class mapOnRectangle():
 		N = modesmat.shape[0]
 		maxMode = N//2
 		freqs = np.reshape(np.linspace(1, maxMode, N/2), (-1, 1))
+		M = len(x)
+		if modes_fnc is None:
+			print("no helper function")
+			phi_mat = np.zeros((M, M, N, N))
+			X, Y = np.meshgrid(x, y)
+			Xprime = (X-self.rect.x1)/(self.rect.x2-self.rect.x1)
+			Yprime = (Y-self.rect.y1)/(self.rect.y2-self.rect.y1)
+			for k in range(N):
+				for l in range(N):
+					if k == 0 and l == 0:
+						phi_mat[:, :, 0, 0] = np.ones((M,M))
+					elif k == 0 and l > 0 and l <= maxMode:
+						phi_mat[:, :, k, l] = np.cos(l*2*pi*Xprime)
+					elif k == 0 and l > 0 and l > maxMode:
+						phi_mat[:, :, k, l] = np.sin((l-maxMode)*2*pi*Xprime)
+					elif k > 0 and k <= maxMode and l == 0:
+						phi_mat[:, :, k, l] = np.cos(k*2*pi*Yprime)
+					elif k > 0 and k > maxMode and l == 0:
+						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)
+					elif k > 0 and l > 0:
+						if k <= maxMode and l <= maxMode:
+							phi_mat[:, :, k, l] = np.cos(k*2*pi*Yprime)*np.cos(l*2*pi*Xprime)
+						elif k <= maxMode and l > maxMode:
+							phi_mat[:, :, k, l] = np.cos(k*2*pi*Yprime)*np.sin((l-maxMode)*2*pi*Xprime)
+						elif k > maxMode and l <= maxMode:
+							phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)*np.cos(l*2*pi*Xprime)
+						else:
+							phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)*np.sin((l-maxMode)*2*pi*Xprime)
+			modes_fnc = phi_mat
+			print("done constructing helper function")
+		mm = np.reshape(modesmat, (1, 1, N, N))
+		mm = np.tile(mm, (M, M, 1, 1))
+		temp = mm*modes_fnc
+		return np.sum(temp, (2,3))
+
+	def getPhiMat(self):
+		x = self.x
+		y = self.y
+		N = self.fouriermodes.shape[0] # only for dimensionality, value of fouriermodes is not needed
+		maxMode = N//2	
 		M = len(x)
 		phi_mat = np.zeros((M, M, N, N))
 		X, Y = np.meshgrid(x, y)
@@ -191,10 +336,7 @@ class mapOnRectangle():
 						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)*np.cos(l*2*pi*Xprime)
 					else:
 						phi_mat[:, :, k, l] = np.sin((k-maxMode)*2*pi*Yprime)*np.sin((l-maxMode)*2*pi*Xprime)
-		mm = np.reshape(modesmat, (1, 1, N, N))
-		mm = np.tile(mm, (M, M, 1, 1))
-		temp = mm*phi_mat
-		return np.sum(temp, (2,3))
+		return phi_mat
 
 	def evalmodes(self, modesmat, x, y): # evaluate function at positions (x0,y0), (x1,y1), ...
 		# input: x, y = x0, y0 or
@@ -353,89 +495,16 @@ class mapOnRectangle():
 	def __truediv__(self, m):
 		return self.__div__(m)
 
-#res = np.zeros_like(fncvals)
-
-#res[0] = fncvals[0]*delx # should not be used for plotting etc. but is needed for compatibility with differentiate
-#for i, val in enumerate(x[1:]): # this is slow!
-#	y = np.trapz(fncvals[0:i+2], dx=delx)
-#	res[i+1] = y
-"""
-	res = np.concatenate((np.array([0]), scipy.integrate.cumtrapz(fncvals, x, dx = delx)))
-	return mapOnInterval("expl", res)
-	
-def differentiate(x, f): # finite differences
-	if isinstance(f, mapOnInterval):
-		fncvals = f.values
-	else:
-		raise Exception()
-	fprime = np.zeros_like(fncvals)
-	fprime[1:] = (fncvals[1:]-fncvals[:-1])/(x[1]-x[0])
-	fprime[0] = fprime[1]
-	return mapOnInterval("expl", fprime)"""
-
-	
-#if __name__ == "__main__":
-"""x = np.linspace(0, 1, 2**9, endpoint=False)
-f1 = mapOnInterval("fourier", [0,0,1,0,1], 2**9)
-#plt.ion()
-#plt.plot(x, f1.values)
-#hW.plotApprox(x, f1.waveletcoeffs)
-
-f2 = mapOnInterval("expl", np.array([4,2,3,1,2,3,4,5]), 4)
-#hW.plotApprox(x, f2.waveletcoeffs)
-
-f3 = mapOnInterval("handle", lambda x: sin(3*x)-x**2*cos(x))
-#hW.plotApprox(x, f3.waveletcoeffs)
-
-
-hW.plotApprox(x, (f1*f3).waveletcoeffs)
-plt.show()"""
-"""modesmat = np.array([[1,0,1],[1,0,0],[0,-1,0]])
-modesmat = np.random.uniform(-1, 1, (11,11))
-J = 5
-x = np.linspace(0, 1, 2**J)
-f = evalmodesGrid(modesmat, x)
-plt.imshow(f, interpolation='None')
-plt.ion()
-plt.show()
-plt.figure()
-X, Y = np.meshgrid(x,x)
-Z = 1 + np.sin(2*pi*X) + np.cos(2*pi*Y) - np.cos(2*pi*X)*np.sin(2*pi*Y)
-plt.imshow(Z, interpolation='None')
-
-fun = mapOnInterval("fourier", modesmat)
-
-# test evaluation speed
-pts = np.random.uniform(0, 1, (2, 10))"""
-import measures as mm
-import time
-"""fun = mm.GaussianFourier2d(np.zeros((31,31)), 2., 0.5).sample()
-N = 2000
-pts = np.random.uniform(0, 1, (2, N))
-val = np.zeros((N,))
-start = time.time()
-ptseval = fun.handle(pts[0, :], pts[1, :])
-end = time.time()
-#for k in range(N):
-#	val[k] = fun.handle(pts[:, k])
-end2 = time.time()
-print(end-start)
-print(end2-end)"""
-"""m1 = mapOnRectangle(0, 2, 1, 5, "wavelet", packWavelet(np.array([0,1,0,0])), resol=4)
-mat = np.zeros((5,5))
-mat[1,3] = 1
-m2 = mapOnRectangle(0, 1, 5, 2, "fourier", mat, resol=6)
-x, y = m2.getXY()
-X, Y = np.meshgrid(x, y)
-plt.figure(); plt.ion();
-plt.contourf(X, Y, m2.values); plt.colorbar()
-plt.show()
-cc = hW.waveletanalysis2d(m2.values)
-plt.figure()
-for n in range(7):
-	plt.subplot(3, 3, n+1)
-	mm = mapOnRectangle(0, 1, 5, 2, "wavelet", cc[0:n+1], resol=6)
-	plt.contourf(X, Y, mm.values)"""
-		
-	
+if __name__ == "__main__":
+	rect = Rectangle((0,0),(1,1),5)
+	A = np.concatenate((1.0*np.ones((13, 20)), 2.0*np.ones((13, 12))), axis=1)
+	B = np.concatenate((-1.5*np.ones((19, 14)), 0.5*np.ones((19, 18))), axis=1)
+	mat = np.concatenate((A, B), axis=0)
+	#plt.figure(); plt.ion(); plt.contourf(mat); plt.colorbar(); plt.show()
+	u1 = mapOnRectangle(rect, "expl", mat)
+	plt.figure(); plt.ion(); plt.contourf(u1.X, u1.Y, u1.values, 50); plt.colorbar()
+	a = getFourierCoeffs(mat, 17)
+	u2 = mapOnRectangle(rect, "fourier", a)
+	plt.figure(); plt.contourf(u2.X, u2.Y, u2.values, 50); plt.colorbar()
+	plt.show()
 	

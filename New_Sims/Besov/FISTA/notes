@@ -1,0 +1,24 @@
+kappa = 10000:
+	I(uTruth) 	= 116488 = 41.3 (Phi) + 116446 (norm)
+	I(uOpt)		= 29791 = 9491.4(Phi) + 20300 (norm)
+
+kappa = 500:
+	I(uTruth) 	= 5863.6 = 41.3 (Phi) + 5822.3 (norm)
+	I(uOpt)		= 2725.9 = 385.2(Phi) + 2340.7 (norm)
+
+kappa = 50:
+	I(uTruth) 	= 623.5 = 41.3 (Phi) + 582.2 (norm)
+	I(uOpt)		= 390.3 = 64.7(Phi) + 325.6 (norm)
+
+kappa = 20:
+	I(uTruth) 	= 274.1 = 41.2 (Phi) + 232.9 (norm)
+	I(uOpt)		= 186.7 = 43.3 (Phi) + 143.4 (norm)
+
+kappa = 10:
+	I(uTruth) 	= 157.7 = 41.3 (Phi) + 116.4 (norm)
+	I(uOpt)		= 108.3 = 27.3(Phi) + 81.0 (norm)
+
+kappa = 3:
+	I(uTruth) 	= 76.2 = 41.3 (Phi) + 34.9 (norm)
+	I(uOpt)		= 45.8 = 12.4 (Phi) + 33.4 (norm)
+

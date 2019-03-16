@@ -12,6 +12,13 @@ __pycache__/
 # save files
 *.p
 
+# data
+*.pkl
+*.pvd
+*.vtu
+*.mat
+jitfailure*
+
 # Distribution / packaging
 .Python
 env/
