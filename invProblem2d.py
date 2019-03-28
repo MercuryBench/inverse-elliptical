@@ -260,7 +260,6 @@ class inverseProblem():
 			functions.append(project(k*dot(grad(Fu_), grad(wt)), self.fwd.V))
 		
 		if version == 0:
-			print("version 0")
 			DG = np.zeros((len(positions),len(unpackWavelet(u.waveletcoeffs))))
 			for m, fnc in enumerate(functions):
 				valsfnc = np.reshape(fnc.compute_vertex_values(), (2**self.fwd.rect.resol+1, 2**self.fwd.rect.resol+1))
@@ -270,7 +269,6 @@ class inverseProblem():
 				DG[m, :] = DG_vec
 			return DG
 		elif version == 1: # like version 0 but with correction for 0th wavelet coeff
-			print("version 1")
 			N = len(unpackWavelet(u.waveletcoeffs))
 			DG = np.zeros((len(positions),len(unpackWavelet(u.waveletcoeffs))))
 			for m, fnc in enumerate(functions):
@@ -291,7 +289,6 @@ class inverseProblem():
 			# correct 0th wavelet coeff entry	
 			return DG
 		elif version == 2: # more exact variant
-			print("version 2")
 			N = len(unpackWavelet(u.waveletcoeffs))
 			DG_vec = np.zeros((len(positions),len(unpackWavelet(u.waveletcoeffs))))
 			for kk in range(N): # wavelet coeffs
@@ -391,7 +388,7 @@ class inverseProblem():
 					s2 = time.time()
 					#print(str(s2-s1) + " seconds for fourier eval AND assembly in fourier")
 			return DPhi_vec.reshape((M*N,))
-		
+	"""	
 	def DNormpart(self, u): # BAD! put in prior instead
 		wc = packWavelet(np.array(unpackWavelet(u.waveletcoeffs), copy = True))
 		MM = len(wc)
@@ -404,7 +401,7 @@ class inverseProblem():
 			wc[m][1] = wc[m][1]*factors[m]
 			wc[m][2] = wc[m][2]*factors[m]
 		normpartvec = unpackWavelet(wc)
-		return normpartvec
+		return normpartvec"""
 	
 	def DI_adjoint_vec_wavelet(self, u, version=2):
 		DPhi_vec = self.DPhi_adjoint_vec_wavelet(u, version=version)
@@ -727,7 +724,7 @@ class inverseProblem():
 			vmax2 = np.max(sol.values)
 			vmax = max(vmax1, vmax2)
 			if obs is not None:
-				plt.scatter(obspos[0], obspos[1], s=20, c=obs, cmap=plt.cm.viridis, edgecolors="black")
+				plt.scatter(obspos[0], obspos[1], s=20, c=obs, vmin=vmin, vmax=vmax , cmap=plt.cm.viridis, edgecolors="black")
 				xmin = np.min(X)
 				xmax = np.max(X)
 				ymin = np.min(Y)

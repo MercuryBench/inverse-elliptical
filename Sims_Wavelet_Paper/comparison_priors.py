@@ -36,9 +36,9 @@ f = mor.mapOnRectangle(rect, "handle", lambda x, y: ( ((x-.6)**2 + (y-.85)**2) <
 
 fwd = linEllipt2dRectangle(rect, f, u_D, boundary_D_boolean)
 
-s = 1.0
+s = 1.5
 
-m1 = GeneralizedGaussianWavelet2d(rect, s, 1.5, 6)
+m1 = GeneralizedGaussianWavelet2d(rect, 1.0, s, 6)
 m2 = GaussianFourier2d(rect, np.zeros((33,33)), 0.5, 2.0)
 invProb = inverseProblem(fwd, m1, gamma)
 invProb2 = inverseProblem(fwd, m2, gamma)

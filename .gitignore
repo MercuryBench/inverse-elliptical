@@ -19,6 +19,9 @@ __pycache__/
 *.mat
 jitfailure*
 
+# old files
+alt
+
 # Distribution / packaging
 .Python
 env/

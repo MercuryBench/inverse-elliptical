@@ -195,7 +195,43 @@ class GeneralizedGaussianWavelet2d(measure):
 			jnumber = j-1 # account for 0th mode (special)
 			j_besovprod[j] = np.sum((w1.waveletcoeffs[j][0]*w2.waveletcoeffs[j][0]+w1.waveletcoeffs[j][1]*w2.waveletcoeffs[j][1]+w1.waveletcoeffs[j][2]*w2.waveletcoeffs[j][2])*4**(jnumber*self.s))
 		return self.kappa*np.cumsum(j_besovprod)
-
+	
+	def multiplyWithInvCov(self, u): # yields the result of C^{-1} @ u
+		wc = packWavelet(np.array(unpackWavelet(u.waveletcoeffs), copy = True))
+		MM = len(wc)
+		s = self.s
+		kappa = self.kappa
+		factors = [kappa] + [kappa*4**(j*s) for j in range(MM-1)]
+		wc[0] = wc[0]*factors[0]
+		for m in range(1, MM):
+			wc[m][0] = wc[m][0]*factors[m]
+			wc[m][1] = wc[m][1]*factors[m]
+			wc[m][2] = wc[m][2]*factors[m]
+		normpartvec = unpackWavelet(wc)
+		return normpartvec
+	
+	def Cov(self):
+		MM = self.maxJ
+		s = self.s
+		kappa = self.kappa
+		wc0 = [np.array([[1/kappa]])]
+		wc_rem = [[1/kappa * 4**(-j*s)*np.ones((2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)]
+		wc = wc0 + wc_rem
+		Cov = unpackWavelet(wc)
+		return Cov
+	
+	def invCov(self):
+		MM = self.maxJ
+		s = self.s
+		kappa = self.kappa
+		wc0 = [np.array([[kappa]])]
+		wc_rem = [[kappa * 4**(j*s)*np.ones((2**j, 2**j)) for m in range(3)] for j in range(self.maxJ-1)]
+		wc = wc0 + wc_rem
+		Cov = unpackWavelet(wc)
+		return Cov
+	
+	
+	
 	def normpart(self, u):
 		return 1.0/2*self.covInnerProd(u, u)
 	def norm(self, u):
